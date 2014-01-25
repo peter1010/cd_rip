@@ -15,14 +15,19 @@ g_cached_hello_str = None
 
 
 def get_username():
+    """Get a username for use in the Query request to CDDB database"""
     try:
         (user, host) = os.environ['EMAIL'].split('@')
     except KeyError:
-        user = os.environ['USER'] or os.geteuid() or 'user'
+        try:
+            user = os.environ['USER']
+        except KeyError:
+            user = str(os.geteuid()) or 'user'
     return user
 
 
 def get_hostname():
+    """Get a hostname for use in the Query request to CDDB database"""
     try:
         (user, host) = os.environ['EMAIL'].split('@')
     except KeyError:
@@ -30,18 +35,20 @@ def get_hostname():
     return host
 
 
-def get_hello_str():
+def get_hello_str(client_name = CLIENT_NAME, client_ver = CLIENT_VER):
+    """Create the hello string for use in the Query request to CDDB database"""
     global g_cached_hello_str
     if g_cached_hello_str:
         return g_cached_hello_str
 
-    hello = "hello=%s+%s+%s+%s" % (get_username(), get_hostname(), CLIENT_NAME, CLIENT_VER)
+    hello = "hello=%s+%s+%s+%s" % (get_username(), get_hostname(), client_name, client_ver)
     g_cached_hello_str = hello
     return hello
 
 
-def get_proto_str():
-    return "proto=%i" % CDDB_PROTO
+def get_proto_str(proto_ver = CDDB_PROTO):
+    """Create the proto string for use in the Query request to CDDB database"""
+    return "proto=%i" % proto_ver
 
 
 def get_query_str(disc_info):
@@ -67,8 +74,8 @@ def perform_request(server_url, query_str, hello_str, proto_str):
     print(url)
     try:
         response = urllib.request.urlopen(url)
-    except urllib.error.URLError:
-        print("Failed to connect to '%s'" % server_url)
+    except urllib.error.URLError as err:
+        print("Failed to connect to '%s'" % server_url, err)
         return None
     lines = []
     for line in response.readlines():
@@ -79,6 +86,7 @@ def perform_request(server_url, query_str, hello_str, proto_str):
         line = line.strip()
         lines.append(line)
         print(line)
+    response.close()
     return lines
 
 
@@ -137,8 +145,10 @@ def read_cddb_metadata(disc_info, server_url = DEF_SERVER):
                 continue
 
             line = line.replace(r'\t', "\t").replace(r'\n', "\n").replace('\\', "\\").strip()
-
-            name, value = line.split("=", 2)
+            try:
+                name, value = line.split("=", 2)
+            except ValueError:
+                continue
             name = name.strip()
             value = value.strip()
             entries[name] = value
