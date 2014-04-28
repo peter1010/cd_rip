@@ -191,6 +191,7 @@ def get_track_info(discInfo, cddb_srv=DEF_SERVER):
 
     except IndexError:
         discInfo.title = "unknown"
+        entries = None
     
     print(discInfo.title)
 #    for track in discInfo.tracks:
