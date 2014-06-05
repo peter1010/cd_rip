@@ -2,6 +2,7 @@ import os
 import socket
 import urllib.request
 import urllib.parse
+import functools
 
 DEF_SERVER = 'http://freedb.freedb.org/~cddb/cddb.cgi'
 CLIENT_NAME = 'CDDB.py'
@@ -9,13 +10,10 @@ CLIENT_VER = 1.4
 CDDB_PROTO = 5
 
 
-g_cached_hello_str = None
-
-
 def get_username():
     """Get a username for use in the Query request to CDDB database"""
     try:
-        (user, host) = os.environ['EMAIL'].split('@')
+        user = os.environ['EMAIL'].split('@')[0]
     except KeyError:
         try:
             user = os.environ['USER']
@@ -27,21 +25,18 @@ def get_username():
 def get_hostname():
     """Get a hostname for use in the Query request to CDDB database"""
     try:
-        (user, host) = os.environ['EMAIL'].split('@')
+        host = os.environ['EMAIL'].split('@')[1]
     except KeyError:
         host = socket.gethostname() or 'host'
     return host
 
 
+@functools.lru_cache
 def get_hello_str(client_name=CLIENT_NAME, client_ver=CLIENT_VER):
     """Create the hello string for use in the Query request to CDDB database"""
-    global g_cached_hello_str
-    if g_cached_hello_str:
-        return g_cached_hello_str
 
     hello = "hello=%s+%s+%s+%s" % (get_username(), get_hostname(), client_name,
                                    client_ver)
-    g_cached_hello_str = hello
     return hello
 
 
@@ -65,10 +60,12 @@ def get_query_str(disc_info):
 
 
 def get_read_str(disc_info):
+    """Return the string to send to server to read disc info"""
     return "cmd=cddb+read+%s+%s" % (disc_info.category, disc_info.disc_id)
 
 
 def perform_request(server_url, query_str, hello_str, proto_str):
+    """Perform a read request to server"""
     url = "%s?%s&%s&%s" % (server_url, query_str, hello_str, proto_str)
     print(url)
     try:
@@ -90,12 +87,15 @@ def perform_request(server_url, query_str, hello_str, proto_str):
 
 
 class CddbEntry(object):
+    """Hold a CBBD entry"""
+
     def __init__(self, category, title):
         self.category = category
         self.title = title
 
 
 def query_cddb(disc_info, server_url=DEF_SERVER):
+    """Query the CDDB server"""
     lines = perform_request(server_url, get_query_str(disc_info),
                             get_hello_str(), get_proto_str())
     if lines is None:
@@ -127,6 +127,7 @@ def query_cddb(disc_info, server_url=DEF_SERVER):
 
 
 def read_cddb_metadata(disc_info, server_url=DEF_SERVER):
+    """Read Metadata from the CBBD server"""
     lines = perform_request(server_url, get_read_str(disc_info),
                             get_hello_str(), get_proto_str())
     if lines is None:
@@ -167,8 +168,9 @@ def read_cddb_metadata(disc_info, server_url=DEF_SERVER):
     return entries
 
 
-def get_track_info(discInfo, cddb_srv=DEF_SERVER):
-    possible_entries = query_cddb(discInfo, cddb_srv)
+def get_track_info(disc_info, cddb_srv=DEF_SERVER):
+    """Get the Track Info"""
+    possible_entries = query_cddb(disc_info, cddb_srv)
     if possible_entries is None:
         return None
 
@@ -184,16 +186,16 @@ def get_track_info(discInfo, cddb_srv=DEF_SERVER):
     try:
         entry = possible_entries[selection]
 
-        discInfo.title = entry.title
-        discInfo.category = entry.category
+        disc_info.title = entry.title
+        disc_info.category = entry.category
 
-        entries = read_cddb_metadata(discInfo, cddb_srv)
+        entries = read_cddb_metadata(disc_info, cddb_srv)
 
     except IndexError:
-        discInfo.title = "unknown"
+        disc_info.title = "unknown"
         entries = None
 
-    print(discInfo.title)
-#    for track in discInfo.tracks:
+    print(disc_info.title)
+#    for track in disc_info.tracks:
 #        print(track.num, track.artist, "/", track.title)
     return entries
