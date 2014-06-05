@@ -6,7 +6,8 @@ import pickle
 import rip_lib.disc_info as disc_info
 import rip_lib.cddb as cddb
 
-DEVICE="/dev/sr0"
+DEVICE = "/dev/sr0"
+
 
 def yesOrNo():
     while 1:
@@ -16,8 +17,8 @@ def yesOrNo():
             return True
         elif answer.startswith('n'):
             return False
-        else :
-            print( "Please type 'y' or 'n'")
+        else:
+            print("Please type 'y' or 'n'")
 
 
 def extractStr(line):
@@ -26,63 +27,63 @@ def extractStr(line):
     return line
 
 
-def replaceChars(line, chars = "\\\'\" (){}[]<>"):
+def replaceChars(line, chars="\\\'\" (){}[]<>"):
     line = line.strip()
-    for char in chars :
+    for char in chars:
         idx = 0
-        while idx >= 0 :
+        while idx >= 0:
             idx = line.find(char, idx)
-            if idx >= 0 :
+            if idx >= 0:
                 line = line[:idx] + "_" + line[idx+1:]
                 idx = idx+1
-    while 1 :
+    while 1:
         idx = line.find("__")
-        if idx >= 0 :
+        if idx >= 0:
             line = line[:idx] + line[idx+1:]
-        else :
+        else:
             break
 
     return line.strip()
 
 
-def shrink(line, max = 30) :
-    if len(line) <= max :
+def shrink(line, max=30):
+    if len(line) <= max:
         return line
 
-    while len(line) > max :
-        if line.lower().startswith('the ') :
+    while len(line) > max:
+        if line.lower().startswith('the '):
             line = line[4:]
         elif line.lower().endswith(' the'):
             line = line[:-4]
-        else :
+        else:
             idx = line.lower().find(' the ')
-            if idx >= 0 :
+            if idx >= 0:
                 line = line[:idx] + " " + line[idx+5:]
-            else :
+            else:
                 break
 
     return line[:30]
 
 
-def removeChars(line, chars = "!?;,."):
+def removeChars(line, chars="!?;,."):
     line = line.strip()
-    for char in chars :
+    for char in chars:
         idx = 0
-        while idx >= 0 :
+        while idx >= 0:
             idx = line.find(char, idx)
-            if idx >= 0 :
+            if idx >= 0:
                 line = line[:idx] + line[idx+1:]
                 idx = idx+1
     return line.strip()
 
 
-def escapeChars(line, chars = "#`\\\'\" ()&|[]{}<>;") :
+def escapeChars(line, chars="#`\\\'\" ()&|[]{}<>;"):
     line = line.strip()
-    for char in chars :
+    for char in chars:
         idx = 0
-        while idx >= 0 :
+        while idx >= 0:
             idx = line.find(char, idx)
-            if idx >= 0 :
+            if idx >= 0:
                 line = line[:idx] + "\\" + line[idx:]
                 idx = idx+2
     return line.strip()
@@ -97,7 +98,7 @@ def processTags(discInfo, idx):
 
 def load_pickle(tmp_dir):
     try:
-        with open(os.path.join(tmp_dir,"pickle.info"), "rb") as pkl_fd:
+        with open(os.path.join(tmp_dir, "pickle.info"), "rb") as pkl_fd:
             discInfo = pickle.load(pkl_fd)
     except FileNotFoundError:
         discInfo = None
@@ -106,7 +107,7 @@ def load_pickle(tmp_dir):
 
 def save_pickle(tmp_dir, discInfo):
     discInfo.print_details()
-    pkl_fd = open(os.path.join(tmp_dir,"pickle.info"), "wb")
+    pkl_fd = open(os.path.join(tmp_dir, "pickle.info"), "wb")
     discInfo = pickle.dump(discInfo, pkl_fd)
     pkl_fd.close()
 
@@ -129,47 +130,43 @@ def main(working_dir):
         discInfo.add_cddb_metadata(metadata)
     save_pickle(tmp_dir, discInfo)
 
-
     files = os.listdir(tmp_dir)
-    entries = [ x for x in files if x.endswith(".wav")]
+    entries = [x for x in files if x.endswith(".wav")]
     if len(entries) < discInfo.num_tracks:
-
-# -x = maximum quality
-# -B = bulk
-
+        # -x = maximum quality
+        # -B = bulk
         args = ["cdparanoia", "-d", DEVICE, "-B"]
         curdir = os.getcwd()
         try:
             os.chdir(tmp_dir)
-            info = subprocess.check_output(args)
+            subprocess.check_output(args)
         except FileNotFoundError:
             print("Check %s is installed\n" % args[0])
             sys.exit(-1)
         finally:
             os.chdir(curdir)
 
-    print( "Convert to OGG?")
+    print("Convert to OGG?")
     doOgg = yesOrNo()
 
-    print( "Convert to MP3?")
+    print("Convert to MP3?")
     doMp3 = yesOrNo()
 
-    if not doOgg or not doMp3 :
-        print( "Update tags?")
+    if not doOgg or not doMp3:
+        print("Update tags?")
         doTags = yesOrNo()
 
-
-    for i in range(1,100) :
+    for i in range(1, 100):
         wav = os.path.join(tmp_dir, "track%02d.cdda.wav" % i)
         mp3 = os.path.join(tmp_dir, "track%02d.mp3" % i)
         ogg = os.path.join(tmp_dir, "track%02d.ogg" % i)
 
         albumTitle, performer, trackTitle = processTags(discInfo, i)
-        print( albumTitle)
-        print( performer)
-        print( trackTitle)
+        print(albumTitle)
+        print(performer)
+        print(trackTitle)
 
-        if doOgg :
+        if doOgg:
             args = ["oggenc", "-q", "7", "--utf8",
                     "-a", performer,
                     "-t", trackTitle,
@@ -180,7 +177,7 @@ def main(working_dir):
             print(args)
             subprocess.call(args)
 
-        elif doTags :
+        elif doTags:
             args = ["metaflac", "--remove-all-tags",
                     "--set-tag=album=%s" % albumTitle,
                     "--set-tag=performer=%s" % performer,
@@ -189,7 +186,7 @@ def main(working_dir):
             print(args)
             subprocess.call(args)
 
-        if doMp3 :
+        if doMp3:
             args = ["lame", "-V", "5",
                     "--tt", trackTitle,
                     "--ta", performer,
@@ -198,22 +195,22 @@ def main(working_dir):
                     wav, mp3]
             print(args)
             subprocess.call(args)
-        elif doTags :
-            cmd = "id3tag -s%s -a%s -A%s -t%d %s" \
-                 % (trackTitle, performer, albumTitle, i, mp3)
-            print( cmd)
+        elif doTags:
+            cmd = "id3tag -s%s -a%s -A%s -t%d %s" % (
+                trackTitle, performer, albumTitle, i, mp3
+            )
+            print(cmd)
             os.system(cmd)
 
 #   os.remove(wav)
 
-    try :
+    try:
         os.remove("audio.cddb")
         os.remove("audio.cdindex")
-    except OSError :
+    except OSError:
         pass
 
-    print( "Rename tmp-rip?")
+    print("Rename tmp-rip?")
     dirName = replaceChars(removeChars(extractStr(discInfo.title)))
-    if yesOrNo() :
+    if yesOrNo():
         os.rename(tmp_dir, dirName)
-

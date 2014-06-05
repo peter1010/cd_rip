@@ -1,6 +1,4 @@
 import os
-import sys
-import subprocess
 import socket
 import urllib.request
 import urllib.parse
@@ -35,18 +33,19 @@ def get_hostname():
     return host
 
 
-def get_hello_str(client_name = CLIENT_NAME, client_ver = CLIENT_VER):
+def get_hello_str(client_name=CLIENT_NAME, client_ver=CLIENT_VER):
     """Create the hello string for use in the Query request to CDDB database"""
     global g_cached_hello_str
     if g_cached_hello_str:
         return g_cached_hello_str
 
-    hello = "hello=%s+%s+%s+%s" % (get_username(), get_hostname(), client_name, client_ver)
+    hello = "hello=%s+%s+%s+%s" % (get_username(), get_hostname(), client_name,
+                                   client_ver)
     g_cached_hello_str = hello
     return hello
 
 
-def get_proto_str(proto_ver = CDDB_PROTO):
+def get_proto_str(proto_ver=CDDB_PROTO):
     """Create the proto string for use in the Query request to CDDB database"""
     return "proto=%i" % proto_ver
 
@@ -69,7 +68,7 @@ def get_read_str(disc_info):
     return "cmd=cddb+read+%s+%s" % (disc_info.category, disc_info.disc_id)
 
 
-def perform_request(server_url, query_str, hello_str, proto_str): 
+def perform_request(server_url, query_str, hello_str, proto_str):
     url = "%s?%s&%s&%s" % (server_url, query_str, hello_str, proto_str)
     print(url)
     try:
@@ -96,12 +95,13 @@ class CddbEntry(object):
         self.title = title
 
 
-def query_cddb(disc_info, server_url = DEF_SERVER):
-    lines = perform_request(server_url, get_query_str(disc_info), get_hello_str(), get_proto_str())
+def query_cddb(disc_info, server_url=DEF_SERVER):
+    lines = perform_request(server_url, get_query_str(disc_info),
+                            get_hello_str(), get_proto_str())
     if lines is None:
         return None
     # Four elements in header: status, category, disc-id, title
-    header = lines.pop(0).split( ' ', 3)
+    header = lines.pop(0).split(' ', 3)
 
     status_code = int(header[0])
     possible_discs = []
@@ -110,12 +110,11 @@ def query_cddb(disc_info, server_url = DEF_SERVER):
         assert(header[2] == disc_info.disc_id)
         possible_discs.append(CddbEntry(header[1], header[3]))
 
-    elif status_code == 211 or status_code == 210: # multiple matches
+    elif status_code == 211 or status_code == 210:  # multiple matches
         for line in lines:
             print(line)
             if line == '.':		# end of matches
                 break
-                # otherwise: split into 3 pieces, not 4 (thanks to bgp for the fix!)
             match = line.split(' ', 2)
 
             assert(match[1] == disc_info.disc_id)
@@ -127,8 +126,9 @@ def query_cddb(disc_info, server_url = DEF_SERVER):
     return possible_discs
 
 
-def read_cddb_metadata(disc_info, server_url = DEF_SERVER):
-    lines = perform_request(server_url, get_read_str(disc_info), get_hello_str(), get_proto_str())
+def read_cddb_metadata(disc_info, server_url=DEF_SERVER):
+    lines = perform_request(server_url, get_read_str(disc_info),
+                            get_hello_str(), get_proto_str())
     if lines is None:
         return None
 
@@ -136,15 +136,16 @@ def read_cddb_metadata(disc_info, server_url = DEF_SERVER):
     status_code = int(header[0])
     entries = {}
 
-    if status_code == 210 or status_code == 417: # success or access denied
+    if status_code == 210 or status_code == 417:  # success or access denied
         for line in lines:
             if line == '.':
-                break;
+                break
 
             if line.startswith('#'):
                 continue
 
-            line = line.replace(r'\t', "\t").replace(r'\n', "\n").replace('\\', "\\").strip()
+            line = line.replace(r'\t', "\t").replace(r'\n', "\n").replace('\\',
+                                "\\").strip()
             try:
                 name, value = line.split("=", 2)
             except ValueError:
@@ -164,7 +165,6 @@ def read_cddb_metadata(disc_info, server_url = DEF_SERVER):
         print("Header = '%s'" % header)
         entries = None
     return entries
-
 
 
 def get_track_info(discInfo, cddb_srv=DEF_SERVER):
@@ -192,9 +192,8 @@ def get_track_info(discInfo, cddb_srv=DEF_SERVER):
     except IndexError:
         discInfo.title = "unknown"
         entries = None
-    
+
     print(discInfo.title)
 #    for track in discInfo.tracks:
 #        print(track.num, track.artist, "/", track.title)
     return entries
-

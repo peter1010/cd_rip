@@ -1,15 +1,14 @@
-import os
 import sys
 import subprocess
-import socket
 
-DEVICE="/dev/sr0"
+DEVICE = "/dev/sr0"
+
 
 def splitOnSlash(value):
     idx = value.find(" / ")
     if idx >= 0:
         first = value[:idx].strip()
-        second = value[idx+3:].strip()
+        second = value[idx + 3:].strip()
     else:
         first = None
         second = value.strip()
@@ -43,7 +42,6 @@ class TrackInfo:
         print("TRACK ARTIST=", self.artist)
 
 
-
 class DiscInfo(object):
 
     def __init__(self):
@@ -67,22 +65,24 @@ class DiscInfo(object):
         self.disc_id = info[0]
         self.disc_len = int(info[-1])
         assert(int(info[1]) == len(info)-3)
-        self.tracks = [TrackInfo(i,int(x)) for i,x in enumerate(info[2:-1])]
+        self.tracks = [TrackInfo(i, int(x)) for i, x in enumerate(info[2:-1])]
         return True
 
     @property
     def num_tracks(self):
         return len(self.tracks)
-    
+
     def __repr__(self):
-        return "DiscId:%s - (%s)" % (self.disc_id, ",".join([str(x.length) for x in self.tracks]))
+        return "DiscId:%s - (%s)" % (
+            self.disc_id, ",".join([str(x.length) for x in self.tracks])
+        )
 
     def add_cddb_metadata(self, metadata):
         try:
             artist, title = splitOnSlash(metadata["DTITLE"])
         except KeyError:
             artist, title = None, None
-        if artist: 
+        if artist:
             for t in self.tracks:
                 t.artist = artist
         if title:
@@ -98,5 +98,3 @@ class DiscInfo(object):
         print("DISC ARTIST=", self.artist)
         for t in self.tracks:
             t.print_details()
-
-
