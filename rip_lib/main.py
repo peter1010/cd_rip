@@ -9,7 +9,10 @@ import rip_lib.cddb as cddb
 DEVICE = "/dev/sr0"
 
 
-def yesOrNo():
+def yes_or_no(question=None):
+    """Get a Yes or No answer from the user"""
+    if question:
+        print(question)
     while 1:
         answer = input("?")
         answer = answer.lower()
@@ -27,7 +30,8 @@ def extractStr(line):
     return line
 
 
-def replaceChars(line, chars="\\\'\" (){}[]<>"):
+def replace_chars(line, chars="\\\'\" (){}[]<>"):
+    """Replace some characters in string"""
     line = line.strip()
     for char in chars:
         idx = 0
@@ -46,11 +50,12 @@ def replaceChars(line, chars="\\\'\" (){}[]<>"):
     return line.strip()
 
 
-def shrink(line, max=30):
-    if len(line) <= max:
+def shrink(line, max_len=30):
+    """Shrink line to max_len"""
+    if len(line) <= max_len:
         return line
 
-    while len(line) > max:
+    while len(line) > max_len:
         if line.lower().startswith('the '):
             line = line[4:]
         elif line.lower().endswith(' the'):
@@ -65,7 +70,7 @@ def shrink(line, max=30):
     return line[:30]
 
 
-def removeChars(line, chars="!?;,."):
+def remove_chars(line, chars="!?;,."):
     line = line.strip()
     for char in chars:
         idx = 0
@@ -77,7 +82,7 @@ def removeChars(line, chars="!?;,."):
     return line.strip()
 
 
-def escapeChars(line, chars="#`\\\'\" ()&|[]{}<>;"):
+def escape_chars(line, chars="#`\\\'\" ()&|[]{}<>;"):
     line = line.strip()
     for char in chars:
         idx = 0
@@ -89,50 +94,51 @@ def escapeChars(line, chars="#`\\\'\" ()&|[]{}<>;"):
     return line.strip()
 
 
-def processTags(discInfo, idx):
-    albumTitle = extractStr(discInfo.title)
-    performer = extractStr(discInfo.tracks[idx-1].artist)
-    trackTitle = extractStr(discInfo.tracks[idx-1].title)
-    return albumTitle, performer, trackTitle
+def process_tags(info, idx):
+    """Get the tags from Disc Info"""
+    album_title = extractStr(info.title)
+    performer = extractStr(info.tracks[idx-1].artist)
+    track_title = extractStr(info.tracks[idx-1].title)
+
+    print(album_title)
+    print(performer)
+    print(track_title)
+    return album_title, performer, track_title
 
 
 def load_pickle(tmp_dir):
+    """Load the Disk information from a pickle file"""
     try:
         with open(os.path.join(tmp_dir, "pickle.info"), "rb") as pkl_fd:
-            discInfo = pickle.load(pkl_fd)
+            info = pickle.load(pkl_fd)
     except FileNotFoundError:
-        discInfo = None
-    return discInfo
+        info = None
+    return info
 
 
-def save_pickle(tmp_dir, discInfo):
-    discInfo.print_details()
+def save_pickle(tmp_dir, info):
+    """Save the Disk information to a pickle file"""
+    info.print_details()
     pkl_fd = open(os.path.join(tmp_dir, "pickle.info"), "wb")
-    discInfo = pickle.dump(discInfo, pkl_fd)
+    info = pickle.dump(info, pkl_fd)
     pkl_fd.close()
 
 
-def main(working_dir):
+def make_tmp_dir(working_dir):
+    """Make the tmp directory"""
     tmp_dir = os.path.join(working_dir, "tmp_rip")
     try:
         os.mkdir(tmp_dir)
     except FileExistsError:
         pass
+    return tmp_dir
 
-    discInfo = disc_info.DiscInfo()
-    if not discInfo.read_disk(DEVICE):
-        discInfo = load_pickle(tmp_dir)
-    print(discInfo)
-    if not discInfo:
-        return
-    metadata = cddb.get_track_info(discInfo)
-    if metadata:
-        discInfo.add_cddb_metadata(metadata)
-    save_pickle(tmp_dir, discInfo)
 
+def read_cd(tmp_dir, info):
+    """Read the CD"""
     files = os.listdir(tmp_dir)
     entries = [x for x in files if x.endswith(".wav")]
-    if len(entries) < discInfo.num_tracks:
+    if len(entries) < info.num_tracks:
         # -x = maximum quality
         # -B = bulk
         args = ["cdparanoia", "-d", DEVICE, "-B"]
@@ -146,61 +152,121 @@ def main(working_dir):
         finally:
             os.chdir(curdir)
 
-    print("Convert to OGG?")
-    doOgg = yesOrNo()
 
-    print("Convert to MP3?")
-    doMp3 = yesOrNo()
+def wav_filename(tmp_dir, i):
+    """Return the WAV filename"""
+    return os.path.join(tmp_dir, "track%02d.cdda.wav" % i)
 
-    if not doOgg or not doMp3:
-        print("Update tags?")
-        doTags = yesOrNo()
+
+def ogg_filename(tmp_dir, i):
+    """Return the OGG filename"""
+    return os.path.join(tmp_dir, "track%02d.ogg" % i)
+
+
+def mp3_filename(tmp_dir, i):
+    """Return the MP3 filename"""
+    return os.path.join(tmp_dir, "track%02d.mp3" % i)
+
+
+def wav_to_ogg(tmp_dir, info, i):
+    """Convert WAV to OGG"""
+    wav = wav_filename(tmp_dir, i)
+    ogg = ogg_filename(tmp_dir, i)
+
+    album_title, performer, track_title = process_tags(info, i)
+    args = ["oggenc", "-q", "7", "--utf8",
+            "-a", performer,
+            "-t", track_title,
+            "-l", album_title,
+            "-N", str(i),
+            "-o", ogg, wav]
+
+    print(args)
+    subprocess.call(args)
+
+
+def fix_ogg_tags(tmp_dir, info, i):
+    """Fix the OGG tags"""
+    ogg = ogg_filename(tmp_dir, i)
+
+    album_title, performer, track_title = process_tags(info, i)
+    args = ["metaflac", "--remove-all-tags",
+            "--set-tag=album=%s" % album_title,
+            "--set-tag=performer=%s" % performer,
+            "--set-tag=trackInfo=%s" % track_title,
+            "--set-tag=trackNo=%i" % i, ogg]
+    print(args)
+    subprocess.call(args)
+
+
+def wav_to_mp3(tmp_dir, info, i):
+    """Convert WAV to MP3"""
+    wav = wav_filename(tmp_dir, i)
+    mp3 = mp3_filename(tmp_dir, i)
+    album_title, performer, track_title = process_tags(info, i)
+    args = ["lame", "-V", "5",
+            "--tt", track_title,
+            "--ta", performer,
+            "--tl", album_title,
+            "--tn", str(i),
+            wav, mp3]
+    print(args)
+    subprocess.call(args)
+
+
+def fix_mp3_tags(tmp_dir, info, i):
+    """Fix the MP3 tags"""
+    mp3 = mp3_filename(tmp_dir, i)
+
+    album_title, performer, track_title = process_tags(info, i)
+    cmd = "id3tag -s%s -a%s -A%s -t%d %s" % (
+        track_title, performer, album_title, i, mp3
+    )
+    print(cmd)
+    os.system(cmd)
+
+
+def rename_tmp_dir(tmp_dir, info):
+    """Rename the tmp directory"""
+    dir_name = replace_chars(remove_chars(extractStr(info.title)))
+    if yes_or_no("Rename tmp-rip?"):
+        os.rename(tmp_dir, dir_name)
+
+
+def main(working_dir):
+    tmp_dir = make_tmp_dir(working_dir)
+
+    discInfo = disc_info.DiscInfo()
+    if not discInfo.read_disk(DEVICE):
+        discInfo = load_pickle(tmp_dir)
+    print(discInfo)
+    if not discInfo:
+        return
+    metadata = cddb.get_track_info(discInfo)
+    if metadata:
+        discInfo.add_cddb_metadata(metadata)
+    save_pickle(tmp_dir, discInfo)
+
+    read_cd(tmp_dir, discInfo)
+
+    do_ogg = yes_or_no("Convert to OGG?")
+    do_mp3 = yes_or_no("Convert to MP3?")
+
+    if not do_ogg or not do_mp3:
+        do_tags = yes_or_no("Update tags?")
 
     for i in range(1, 100):
-        wav = os.path.join(tmp_dir, "track%02d.cdda.wav" % i)
-        mp3 = os.path.join(tmp_dir, "track%02d.mp3" % i)
-        ogg = os.path.join(tmp_dir, "track%02d.ogg" % i)
+        if do_ogg:
+            wav_to_ogg(tmp_dir, discInfo, i)
 
-        albumTitle, performer, trackTitle = processTags(discInfo, i)
-        print(albumTitle)
-        print(performer)
-        print(trackTitle)
+        elif do_tags:
+            fix_ogg_tags(tmp_dir, discInfo, i)
 
-        if doOgg:
-            args = ["oggenc", "-q", "7", "--utf8",
-                    "-a", performer,
-                    "-t", trackTitle,
-                    "-l", albumTitle,
-                    "-N", str(i),
-                    "-o", ogg, wav]
+        if do_mp3:
+            wav_to_mp3(tmp_dir, discInfo, i)
 
-            print(args)
-            subprocess.call(args)
-
-        elif doTags:
-            args = ["metaflac", "--remove-all-tags",
-                    "--set-tag=album=%s" % albumTitle,
-                    "--set-tag=performer=%s" % performer,
-                    "--set-tag=trackInfo=%s" % trackTitle,
-                    "--set-tag=trackNo=%i" % i, ogg]
-            print(args)
-            subprocess.call(args)
-
-        if doMp3:
-            args = ["lame", "-V", "5",
-                    "--tt", trackTitle,
-                    "--ta", performer,
-                    "--tl", albumTitle,
-                    "--tn", str(i),
-                    wav, mp3]
-            print(args)
-            subprocess.call(args)
-        elif doTags:
-            cmd = "id3tag -s%s -a%s -A%s -t%d %s" % (
-                trackTitle, performer, albumTitle, i, mp3
-            )
-            print(cmd)
-            os.system(cmd)
+        elif do_tags:
+            fix_mp3_tags(tmp_dir, discInfo, i)
 
 #   os.remove(wav)
 
@@ -210,7 +276,4 @@ def main(working_dir):
     except OSError:
         pass
 
-    print("Rename tmp-rip?")
-    dirName = replaceChars(removeChars(extractStr(discInfo.title)))
-    if yesOrNo():
-        os.rename(tmp_dir, dirName)
+    rename_tmp_dir(tmp_dir, discInfo)
