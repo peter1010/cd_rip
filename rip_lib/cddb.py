@@ -31,7 +31,7 @@ def get_hostname():
     return host
 
 
-@functools.lru_cache
+@functools.lru_cache()
 def get_hello_str(client_name=CLIENT_NAME, client_ver=CLIENT_VER):
     """Create the hello string for use in the Query request to CDDB database"""
 
@@ -107,7 +107,7 @@ def query_cddb(disc_info, server_url=DEF_SERVER):
     possible_discs = []
 
     if status_code == 200:		# OK
-        assert(header[2] == disc_info.disc_id)
+        assert header[2] == disc_info.disc_id
         possible_discs.append(CddbEntry(header[1], header[3]))
 
     elif status_code == 211 or status_code == 210:  # multiple matches
@@ -117,7 +117,7 @@ def query_cddb(disc_info, server_url=DEF_SERVER):
                 break
             match = line.split(' ', 2)
 
-            assert(match[1] == disc_info.disc_id)
+            assert match[1] == disc_info.disc_id
             possible_discs.append(CddbEntry(match[0], match[2]))
 
     else:

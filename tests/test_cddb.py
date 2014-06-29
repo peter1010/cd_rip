@@ -11,10 +11,8 @@ import rip_lib.cddb as cddb
 class Dummy: 
     pass
 
-class TestSequenceFunctions(unittest.TestCase):
+class TestCddbFunctions(unittest.TestCase):
 
-    def setUp(self):
-        pass
     
     def test_1(self):
         os.environ["EMAIL"] = "bob@localhost"

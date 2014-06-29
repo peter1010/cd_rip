@@ -95,7 +95,7 @@ def escape_chars(line, chars="#`\\\'\" ()&|[]{}<>;"):
 
 
 def process_tags(info, idx):
-    """Get the tags from Disc Info"""
+    """Get the tags from Disc Info, idx is 1 based"""
     album_title = extractStr(info.title)
     performer = extractStr(info.tracks[idx-1].artist)
     track_title = extractStr(info.tracks[idx-1].title)
@@ -170,10 +170,13 @@ def mp3_filename(tmp_dir, i):
 
 def wav_to_ogg(tmp_dir, info, i):
     """Convert WAV to OGG"""
+    try:
+        album_title, performer, track_title = process_tags(info, i)
+    except IndexError:
+        print("%i out of range" % i)
+        return False
     wav = wav_filename(tmp_dir, i)
     ogg = ogg_filename(tmp_dir, i)
-
-    album_title, performer, track_title = process_tags(info, i)
     args = ["oggenc", "-q", "7", "--utf8",
             "-a", performer,
             "-t", track_title,
@@ -183,13 +186,17 @@ def wav_to_ogg(tmp_dir, info, i):
 
     print(args)
     subprocess.call(args)
+    return True
 
 
 def fix_ogg_tags(tmp_dir, info, i):
     """Fix the OGG tags"""
+    try:
+        album_title, performer, track_title = process_tags(info, i)
+    except IndexError:
+        print("%i out of range" % i)
+        return False
     ogg = ogg_filename(tmp_dir, i)
-
-    album_title, performer, track_title = process_tags(info, i)
     args = ["metaflac", "--remove-all-tags",
             "--set-tag=album=%s" % album_title,
             "--set-tag=performer=%s" % performer,
@@ -197,13 +204,18 @@ def fix_ogg_tags(tmp_dir, info, i):
             "--set-tag=trackNo=%i" % i, ogg]
     print(args)
     subprocess.call(args)
+    return True
 
 
 def wav_to_mp3(tmp_dir, info, i):
     """Convert WAV to MP3"""
+    try:
+        album_title, performer, track_title = process_tags(info, i)
+    except IndexError:
+        print("%i out of range" % i)
+        return False
     wav = wav_filename(tmp_dir, i)
     mp3 = mp3_filename(tmp_dir, i)
-    album_title, performer, track_title = process_tags(info, i)
     args = ["lame", "-V", "5",
             "--tt", track_title,
             "--ta", performer,
@@ -212,18 +224,24 @@ def wav_to_mp3(tmp_dir, info, i):
             wav, mp3]
     print(args)
     subprocess.call(args)
+    return True
 
 
 def fix_mp3_tags(tmp_dir, info, i):
     """Fix the MP3 tags"""
-    mp3 = mp3_filename(tmp_dir, i)
 
-    album_title, performer, track_title = process_tags(info, i)
+    try:
+        album_title, performer, track_title = process_tags(info, i)
+    except IndexError:
+        print("%i out of range" % i)
+        return False
+    mp3 = mp3_filename(tmp_dir, i)
     cmd = "id3tag -s%s -a%s -A%s -t%d %s" % (
         track_title, performer, album_title, i, mp3
     )
     print(cmd)
     os.system(cmd)
+    return True
 
 
 def rename_tmp_dir(tmp_dir, info):
@@ -255,18 +273,22 @@ def main(working_dir):
     if not do_ogg or not do_mp3:
         do_tags = yes_or_no("Update tags?")
 
-    for i in range(1, 100):
+    for idx in range(1, 100):
         if do_ogg:
-            wav_to_ogg(tmp_dir, discInfo, i)
+            if not wav_to_ogg(tmp_dir, discInfo, idx):
+                break
 
         elif do_tags:
-            fix_ogg_tags(tmp_dir, discInfo, i)
+            if not fix_ogg_tags(tmp_dir, discInfo, idx):
+                break
 
         if do_mp3:
-            wav_to_mp3(tmp_dir, discInfo, i)
+            if not wav_to_mp3(tmp_dir, discInfo, idx):
+                break
 
         elif do_tags:
-            fix_mp3_tags(tmp_dir, discInfo, i)
+            if not fix_mp3_tags(tmp_dir, discInfo, idx):
+                break
 
 #   os.remove(wav)
 

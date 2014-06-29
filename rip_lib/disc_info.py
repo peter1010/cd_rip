@@ -4,7 +4,7 @@ import subprocess
 DEVICE = "/dev/sr0"
 
 
-def splitOnSlash(value):
+def split_on_slash(value):
     idx = value.find(" / ")
     if idx >= 0:
         first = value[:idx].strip()
@@ -30,7 +30,7 @@ class TrackInfo:
                 ttitle = metadata["TTITLE%02i" % self.num]
             except KeyError:
                 return
-        artist, title = splitOnSlash(ttitle)
+        artist, title = split_on_slash(ttitle)
         if artist is not None:
             self.artist = artist
         self.title = title
@@ -64,7 +64,7 @@ class DiscInfo(object):
         info = info.decode("ascii").split()
         self.disc_id = info[0]
         self.disc_len = int(info[-1])
-        assert(int(info[1]) == len(info)-3)
+        assert int(info[1]) == len(info)-3
         self.tracks = [TrackInfo(i, int(x)) for i, x in enumerate(info[2:-1])]
         return True
 
@@ -79,22 +79,22 @@ class DiscInfo(object):
 
     def add_cddb_metadata(self, metadata):
         try:
-            artist, title = splitOnSlash(metadata["DTITLE"])
+            artist, title = split_on_slash(metadata["DTITLE"])
         except KeyError:
             artist, title = None, None
         if artist:
-            for t in self.tracks:
-                t.artist = artist
+            for track in self.tracks:
+                track.artist = artist
         if title:
             self.title = title
 
-        for t in self.tracks:
-            t.add_cddb_metadata(metadata)
+        for track in self.tracks:
+            track.add_cddb_metadata(metadata)
 
     def print_details(self):
         print("DISC ID=", self.disc_id)
         print("DISC LENGTH=", self.disc_len)
         print("DISC TITLE=", self.title)
         print("DISC ARTIST=", self.artist)
-        for t in self.tracks:
-            t.print_details()
+        for track in self.tracks:
+            track.print_details()
