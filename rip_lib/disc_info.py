@@ -16,9 +16,9 @@ def split_on_slash(value):
 
 
 class TrackInfo:
-    def __init__(self, trackNum, trackLen):
+    def __init__(self, trackNum, trackOffset):
         self.num = trackNum
-        self.length = trackLen
+        self.offset = trackOffset
         self.artist = "unknown"
         self.title = "unknown"
 
@@ -36,10 +36,12 @@ class TrackInfo:
         self.title = title
 
     def print_details(self):
-        print("TRACK ID=", self.num)
-        print("TRACK LENGTH=", self.length)
-        print("TRACK TITLE=", self.title)
-        print("TRACK ARTIST=", self.artist)
+        print("TRACK ID={:0>2} OFF={:>6} ARTIST='{}' TITLE='{}'".format(
+            self.num,
+            self.offset,
+            self.artist,
+            self.title
+        ))
 
 
 class DiscInfo(object):
@@ -74,7 +76,7 @@ class DiscInfo(object):
 
     def __repr__(self):
         return "DiscId:%s - (%s)" % (
-            self.disc_id, ",".join([str(x.length) for x in self.tracks])
+            self.disc_id, ",".join([str(x.offset) for x in self.tracks])
         )
 
     def add_cddb_metadata(self, metadata):
@@ -92,9 +94,13 @@ class DiscInfo(object):
             track.add_cddb_metadata(metadata)
 
     def print_details(self):
-        print("DISC ID=", self.disc_id)
-        print("DISC LENGTH=", self.disc_len)
-        print("DISC TITLE=", self.title)
-        print("DISC ARTIST=", self.artist)
+        print()
+        print("DISC ID={:0>2} LENGTH={:>6} ARTIST='{}' TITLE='{}'".format(
+            self.disc_id,
+            self.disc_len,
+            self.artist,
+            self.title
+        ))
+        print()
         for track in self.tracks:
             track.print_details()
