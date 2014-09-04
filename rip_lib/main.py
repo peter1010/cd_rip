@@ -236,11 +236,15 @@ def fix_mp3_tags(tmp_dir, info, i):
         print("%i out of range" % i)
         return False
     mp3 = mp3_filename(tmp_dir, i)
-    cmd = "id3tag -s%s -a%s -A%s -t%d %s" % (
-        track_title, performer, album_title, i, mp3
-    )
-    print(cmd)
-    os.system(cmd)
+    args = [
+        "id3tag", "-s", track_title,
+        "-a", performer,
+        "-A", album_title,
+        "-t", i,
+        mp3
+    ]
+    print(args)
+    subprocess.call(args)
     return True
 
 
