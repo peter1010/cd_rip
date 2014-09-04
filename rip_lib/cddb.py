@@ -54,7 +54,7 @@ def get_query_str(disc_info):
     parts.append('%s' % disc_info.disc_id)
     parts.append('%d' % disc_info.num_tracks)
     for track in disc_info.tracks:
-        parts.append('%d' % track.length)
+        parts.append('%d' % track.offset)
     parts.append('%d' % disc_info.disc_len)
     return "cmd=cddb+query+%s" % urllib.parse.quote_plus(" ".join(parts))
 
@@ -67,7 +67,7 @@ def get_read_str(disc_info):
 def perform_request(server_url, query_str, hello_str, proto_str):
     """Perform a read request to server"""
     url = "%s?%s&%s&%s" % (server_url, query_str, hello_str, proto_str)
-    print(url)
+    print(">", url)
     try:
         response = urllib.request.urlopen(url)
     except urllib.error.URLError as err:
@@ -81,7 +81,7 @@ def perform_request(server_url, query_str, hello_str, proto_str):
             line = line.decode("iso-8859-1")
         line = line.strip()
         lines.append(line)
-        print(line)
+        print("<", line)
     response.close()
     return lines
 
@@ -112,7 +112,7 @@ def query_cddb(disc_info, server_url=DEF_SERVER):
 
     elif status_code == 211 or status_code == 210:  # multiple matches
         for line in lines:
-            print(line)
+#            print(line)
             if line == '.':		# end of matches
                 break
             match = line.split(' ', 2)
@@ -154,7 +154,7 @@ def read_cddb_metadata(disc_info, server_url=DEF_SERVER):
             name = name.strip()
             value = value.strip()
             entries[name] = value
-            print(name, "=", value)
+#            print(name, "=", value)
         if status_code == 210:
             # success, parse the reply
             pass
