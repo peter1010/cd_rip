@@ -134,28 +134,41 @@ def make_tmp_dir(working_dir):
     return tmp_dir
 
 
-def read_cd(tmp_dir, info):
-    """Read the CD"""
-    files = os.listdir(tmp_dir)
-    entries = [x for x in files if x.endswith(".wav")]
-    if len(entries) < info.num_tracks:
-        # -x = maximum quality
-        # -B = bulk
-        args = ["cdparanoia", "-d", DEVICE, "-B"]
-        curdir = os.getcwd()
-        try:
-            os.chdir(tmp_dir)
-            subprocess.check_output(args)
-        except FileNotFoundError:
-            print("Check %s is installed\n" % args[0])
-            sys.exit(-1)
-        finally:
-            os.chdir(curdir)
-
-
 def wav_filename(tmp_dir, i):
     """Return the WAV filename"""
     return os.path.join(tmp_dir, "track%02d.cdda.wav" % i)
+
+
+def rm_file(temp_file):
+    try:
+        os.unlink(temp_file)
+    except FileNotFoundError:
+        pass
+
+
+def execute(args, temp_file, out_file):
+    rm_file(temp_file)
+    try:
+        print(args)
+        subprocess.check_output(args)
+        os.rename(temp_file, out_file)
+    except FileNotFoundError:
+        print("Check %s is installed\n" % args[0])
+        sys.exit(-1)
+    finally:
+        rm_file(temp_file)
+
+
+def read_cd(tmp_dir, info):
+    """Read the CD"""
+    temp_file = "temp.wav"
+    for idx in range(1, info.num_tracks+1):
+        wav = wav_filename(tmp_dir, idx)
+        if not os.path.exists(wav):
+            # -x = maximum quality
+            # -B = bulk
+            args = ["cdparanoia", "-d", DEVICE, "-w", str(idx), "temp.wav"]
+            execute(args, temp_file, wav)
 
 
 def ogg_filename(tmp_dir, i):
@@ -166,6 +179,29 @@ def ogg_filename(tmp_dir, i):
 def mp3_filename(tmp_dir, i):
     """Return the MP3 filename"""
     return os.path.join(tmp_dir, "track%02d.mp3" % i)
+
+
+def flac_filename(tmp_dir, i):
+    """Return the FLAC filename"""
+    return os.path.join(tmp_dir, "track%02d.flac" % i)
+
+
+def wav_to_flac(tmp_dir, info):
+    """Convert WAV to FLAC"""
+    temp_file = "temp.flac"
+    for idx in range(1, info.num_tracks+1):
+        flac = flac_filename(tmp_dir, idx)
+        if not os.path.exists(flac):
+            wav = wav_filename(tmp_dir, idx)
+            album_title, performer, track_title = process_tags(info, idx)
+            args = ["flac", "-S", "-best", "--replay-gain", "--no-padding",
+                "-T", "ALBUM={}".format(album_title),
+                "-T", "PERFORMER={}".format(performer),
+                "-T", "TRACK_INFO={}".format(track_title),
+                "-T", "TRACK_NO={}".format(idx), 
+                "-o", temp_file, wav]
+            execute(args, temp_file, flac)
+
 
 
 def wav_to_ogg(tmp_dir, info, i):
@@ -270,6 +306,9 @@ def main(working_dir):
     save_pickle(tmp_dir, discInfo)
 
     read_cd(tmp_dir, discInfo)
+
+    if yes_or_no("Convert to FLAC?"):
+        wav_to_flac(tmp_dir, discInfo)
 
     do_ogg = yes_or_no("Convert to OGG?")
     do_mp3 = yes_or_no("Convert to MP3?")
