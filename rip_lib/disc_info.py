@@ -99,6 +99,7 @@ def read_toc(devname=DEVICE):
 
 class TrackInfo:
     def __init__(self, trackNum, trackOffset):
+        # Track Number is one-based
         self.num = trackNum
         self.offset = trackOffset
         self.artist = "unknown"
@@ -108,11 +109,12 @@ class TrackInfo:
         self.pre_emphasis = pre
 
     def add_cddb_metadata(self, metadata):
+        i = self.num -1 # Cover to zero based
         try:
-            ttitle = metadata["TTITLE%i" % self.num]
+            ttitle = metadata["TTITLE%i" % i]
         except KeyError:
             try:
-                ttitle = metadata["TTITLE%02i" % self.num]
+                ttitle = metadata["TTITLE%02i" % i]
             except KeyError:
                 return
         artist, title = split_on_slash(ttitle)
