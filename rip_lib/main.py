@@ -327,6 +327,8 @@ def main(working_dir):
 
     if not do_ogg or not do_mp3:
         do_tags = yes_or_no("Update tags?")
+    else:
+        do_tags = False
 
     for idx in range(1, 100):
         if do_tags:

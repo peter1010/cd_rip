@@ -4,7 +4,9 @@ import urllib.request
 import urllib.parse
 import functools
 
-DEF_SERVER = 'http://freedb.freedb.org/~cddb/cddb.cgi'
+#DEF_SERVER = 'http://freedb.freedb.org/~cddb/cddb.cgi'
+DEF_SERVER = 'http://freedb.musicbrainz.org/~cddb/cddb.cgi'
+
 CLIENT_NAME = 'CDDB.py'
 CLIENT_VER = 1.4
 CDDB_PROTO = 5
@@ -112,13 +114,13 @@ def query_cddb(disc_info, server_url=DEF_SERVER):
 
     elif status_code == 211 or status_code == 210:  # multiple matches
         for line in lines:
-#            print(line)
+            print(line)
             if line == '.':		# end of matches
                 break
             match = line.split(' ', 2)
 
-            assert match[1] == disc_info.disc_id
-            possible_discs.append(CddbEntry(match[0], match[2]))
+            if match[1] == disc_info.disc_id:
+                possible_discs.append(CddbEntry(match[0], match[2]))
 
     else:
         print("Error code %i received" % status_code)
