@@ -2,6 +2,7 @@ import sys
 import subprocess
 import logging
 
+
 logger = logging.getLogger(__name__)
 
 DEVICE = "/dev/sr0"
@@ -19,7 +20,9 @@ def split_on_slash(value):
 
 
 def read_discid(devname=DEVICE):
-    args = ["cd-discid", devname]
+    """Perform a cd-discid call"""
+    args = ["cd-discid", "--musicbrainz", devname]
+#    args = ["cd-discid", devname]
     try:
         info = subprocess.check_output(args)
     except FileNotFoundError:
@@ -29,10 +32,16 @@ def read_discid(devname=DEVICE):
         print("No CD found\n")
         return None
     info = info.decode("ascii").split()
-    disc_id = info[0]
-    num_tracks = int(info[1])
-    tracks = [int(x) for x in info[2:-1]]
-    disc_len = int(info[-1])
+    if args[1] == "--musicbrainz":
+        disc_id = None
+        num_tracks = int(info[0])
+        tracks = [int(x) for x in info[1:-1]]
+        disc_len = int(info[-1])
+    else:
+        disc_id = info[0]
+        num_tracks = int(info[1])
+        tracks = [int(x) for x in info[2:-1]]
+        disc_len = 75 * int(info[-1])
     assert num_tracks == len(tracks)
     return (disc_id, disc_len, tracks)
 
@@ -157,19 +166,35 @@ class TrackInfo:
 
 class DiscInfo(object):
 
-    def __init__(self):
-        self.disc_id = None
+    def __init__(self, fps=75):
         self.disc_len = 0
         self.tracks = []
         self.title = None
         self.artist = None
+        self.fps = fps
+
+    def disc_total_playtime(self):
+        return int((self.disc_len - self.lead_in) // self.fps)
 
     def read_disk(self, devname=DEVICE):
         info = read_discid(devname)
         if info:
-            self.disc_id = info[0]
+            disc_id = info[0]
             self.disc_len = info[1]
+            self.lead_in = info[2][0]
             self.tracks = [TrackInfo(i+1, x) for i, x in enumerate(info[2])]
+            if disc_id:
+                try:
+                    import rip_lib.freedb as freedb
+                    assert disc_id == freedb.freedb_disc_id(self)
+                except ImportError:
+                    pass
+            if True:
+                try:
+                    import rip_lib.musicbrainz as musz
+                    assert musz.musicbrainz_disc_id(self)
+                except ImportError:
+                    pass
             info2 = read_toc(devname)
             for row in info2:
                 idx = row['track']-1
@@ -186,8 +211,8 @@ class DiscInfo(object):
         return len(self.tracks)
 
     def __repr__(self):
-        return "DiscId:%s - (%s)" % (
-            self.disc_id, ",".join([str(x.offset) for x in self.tracks])
+        return "DiscLen:{} - ({})".format(
+            self.disc_len, ",".join([str(x.offset) for x in self.tracks])
         )
 
     def add_cddb_metadata(self, metadata):
@@ -206,8 +231,7 @@ class DiscInfo(object):
 
     def print_details(self):
         print()
-        print("DISC ID={:0>2} LENGTH={:>6} ARTIST='{}' TITLE='{}'".format(
-            self.disc_id,
+        print("LENGTH={:>6} ARTIST='{}' TITLE='{}'".format(
             self.disc_len,
             self.artist,
             self.title

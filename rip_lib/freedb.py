@@ -12,6 +12,22 @@ CLIENT_VER = 1.4
 CDDB_PROTO = 5
 
 
+def freedb_disc_id(disc_info):
+    """Calculate the freedb disc ID"""
+    chksum = 0
+    for track in disc_info.tracks:
+        start = int(track.offset/75)
+        while start > 0:
+            chksum += (start % 10)
+            start //= 10
+    chksum = chksum % 255
+    return "{:02x}{:04x}{:02x}".format(
+        chksum,
+        disc_info.disc_total_playtime(),
+        len(disc_info.tracks)
+    )
+
+
 def get_username():
     """Get a username for use in the Query request to CDDB database"""
     try:
@@ -53,7 +69,7 @@ def get_query_str(disc_info):
        tracks should be a list of track objects each containing following:
        - length"""
     parts = []
-    parts.append('%s' % disc_info.disc_id)
+    parts.append('%s' % freedb_disc_id(disc_info))
     parts.append('%d' % disc_info.num_tracks)
     for track in disc_info.tracks:
         parts.append('%d' % track.offset)
@@ -63,7 +79,9 @@ def get_query_str(disc_info):
 
 def get_read_str(disc_info):
     """Return the string to send to server to read disc info"""
-    return "cmd=cddb+read+%s+%s" % (disc_info.category, disc_info.disc_id)
+    return "cmd=cddb+read+{}+{}".format(
+        disc_info.category, freedb_disc_id(disc_info)
+    )
 
 
 def perform_request(server_url, query_str, hello_str, proto_str):
@@ -107,9 +125,10 @@ def query_cddb(disc_info, server_url=DEF_SERVER):
 
     status_code = int(header[0])
     possible_discs = []
+    disc_id = freedb_disc_id(disc_info)
 
     if status_code == 200:		# OK
-        assert header[2] == disc_info.disc_id
+        assert header[2] == disc_id
         possible_discs.append(CddbEntry(header[1], header[3]))
 
     elif status_code == 211 or status_code == 210:  # multiple matches
@@ -119,7 +138,7 @@ def query_cddb(disc_info, server_url=DEF_SERVER):
                 break
             match = line.split(' ', 2)
 
-            if match[1] == disc_info.disc_id:
+            if match[1] == disc_id:
                 possible_discs.append(CddbEntry(match[0], match[2]))
 
     else:
