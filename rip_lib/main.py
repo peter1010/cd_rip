@@ -5,9 +5,14 @@ import pickle
 
 import rip_lib.disc_info as disc_info
 import rip_lib.freedb as cddb
+import rip_lib.musicbrainz as musz
 
 DEVICE = "/dev/sr0"
 
+CUEFILE = "disc.cue"
+WAVFILE = "disc.wav"
+FLACFILE = "disc.flac"
+COVERFILE = "cover.jpg"
 
 def yes_or_no(question=None):
     """Get a Yes or No answer from the user"""
@@ -122,11 +127,6 @@ def make_tmp_dir(working_dir):
     return tmp_dir
 
 
-def wav_filename(tmp_dir, i):
-    """Return the WAV filename"""
-    return os.path.join(tmp_dir, "track%02d.cdda.wav" % i)
-
-
 def rm_file(temp_file):
     try:
         os.unlink(temp_file)
@@ -150,35 +150,63 @@ def execute(args, temp_file, out_file):
 def read_cd(tmp_dir, info):
     """Read the CD"""
     temp_file = "temp.wav"
-    for idx in range(1, info.num_tracks+1):
-        wav = wav_filename(tmp_dir, idx)
-        if not os.path.exists(wav):
-            # -x = maximum quality
-            # -B = bulk
-            args = ["cdparanoia", "-d", DEVICE, "-w", str(idx), "temp.wav"]
-            execute(args, temp_file, wav)
+    wav = os.path.join(tmp_dir, WAVFILE)
+    if not os.path.exists(wav):
+        args = [
+            "cdparanoia",
+            "-d", DEVICE,
+            "\"-{0}\"".format(info.num_tracks),
+            temp_file
+        ]
+        execute(args, temp_file, wav)
 
 
-def flac_filename(tmp_dir, i):
-    """Return the FLAC filename"""
-    return os.path.join(tmp_dir, "track%02d.flac" % i)
+def write_cue_file(tmp_dir, info):
+    cue_file = os.path.join(tmp_dir, CUEFILE)
+    if not os.path.exists(cue_file):
+        temp_file = "temp.cue"
+        if os.path.exists(temp_file):
+            os.unlink(temp_file)
+        with open(temp_file, "w") as out_fp:
+            info.write_cuefile(out_fp)
+        os.rename(temp_file, cue_file)
+    return cue_file
 
+def get_coverart(tmp_dir, info):
+    cover_file = os.path.join(tmp_dir, COVERFILE)
+    if not os.path.exists(cover_file):
+        musz.get_track_info(discInfo, cover_file)
 
 def to_flac(tmp_dir, info):
     """Convert WAV to FLAC"""
-    temp_file = "temp.flac"
-    for idx in range(1, info.num_tracks+1):
-        flac = flac_filename(tmp_dir, idx)
-        if not os.path.exists(flac):
-            wav = wav_filename(tmp_dir, idx)
-            album_title, performer, track_title = process_tags(info, idx)
-            args = ["flac", "-S", "-best", "--replay-gain", "--no-padding",
-                "-T", "ALBUM={}".format(album_title),
-                "-T", "PERFORMER={}".format(performer),
-                "-T", "TRACK_INFO={}".format(track_title),
-                "-T", "TRACK_NO={}".format(idx),
-                "-o", temp_file, wav]
-            execute(args, temp_file, flac)
+    flac_file = os.path.join(tmp_dir, FLACFILE)
+    if not os.path.exists(flac_file):
+        wav_file = os.path.join(tmp_dir, WAVFILE)
+        cue_file = os.path.join(tmp_dir, CUEFILE)
+        temp_file = "temp.flac"
+        args = [
+            "flac",
+            "--best",
+            "--no-padding",
+            "--cuesheet={}".format(cue_file),
+            "-o", temp_file, wav_file]
+        execute(args, temp_file, flac_file)
+
+
+def flac2wav(tmp_dir, idx):
+    """Return the WAV filename"""
+    wav = os.path.join(tmp_dir, "track{:02d}.cdda.wav".format(idx))
+    flac_file = os.path.join(tmp_dir, FLACFILE)
+    if not os.path.exists(wav):
+        temp_file = "temp.wav"
+        args = [
+            "flac",
+            "-d", flac_file,
+            "--cue={}.1-{}.1".format(idx, idx+1),
+            "-o", temp_file
+        ]
+        execute(args, temp_file, wav)
+    return wav
 
 
 def wav48k_filename(tmp_dir, i):
@@ -188,14 +216,11 @@ def wav48k_filename(tmp_dir, i):
 
 def to_wav48k(tmp_dir, info):
     temp_file = "temp.wav"
+    flac_file = os.path.join(tmp_dir, FLACFILE)
     for idx in range(1, info.num_tracks+1):
         wav48k = wav48k_filename(tmp_dir, idx)
         if not os.path.exists(wav48k):
-            wav = wav_filename(tmp_dir, idx)
-            if not os.path.exists(wav):
-                flac = flac_filename(tmp_dir, idx)
-                args = ["flac", "-d", flac, "-o", wav]
-                execute(args, temp_file, wav)
+            wav = flac2wav(tmp_dir, idx)
             args = ["sox", "-S", "-G", wav, temp_file, "rate", "-v", "48k"]
             execute(args, temp_file, wav48k)
 
@@ -213,7 +238,7 @@ def to_ogg(tmp_dir, info):
         if not os.path.exists(ogg):
             wav = wav48k_filename(tmp_dir, idx)
             if not os.path.exists(wav):
-                wav = wav_filename(tmp_dir, idx)
+                wav = flac2wav(tmp_dir, idx)
             album_title, performer, track_title = process_tags(info, idx)
             args = ["oggenc", "-q", "7", "--utf8",
                 "-a", performer,
@@ -256,7 +281,7 @@ def to_mp3(tmp_dir, info):
         if not os.path.exists(mp3):
             wav = wav48k_filename(tmp_dir, idx)
             if not os.path.exists(wav):
-                wav = wav_filename(tmp_dir, idx)
+                wav = flac2wav(tmp_dir, idx)
             album_title, performer, track_title = process_tags(info, idx)
             args = ["lame", "-V", "5",
                 "--tt", track_title,
@@ -311,8 +336,9 @@ def main(working_dir):
 
     read_cd(tmp_dir, discInfo)
 
-    if yes_or_no("Convert to FLAC?"):
-        to_flac(tmp_dir, discInfo)
+    write_cue_file(tmp_dir, discInfo)
+    get_coverart(tmp_dir, discInfo)
+    to_flac(tmp_dir, discInfo)
 
     if yes_or_no("Convert to 48K?"):
         to_wav48k(tmp_dir, discInfo)
