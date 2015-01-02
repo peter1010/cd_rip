@@ -1,5 +1,8 @@
 import sys
 import subprocess
+import logging
+
+logger = logging.getLogger(__name__)
 
 DEVICE = "/dev/sr0"
 
@@ -41,6 +44,15 @@ def timeStr2time(line):
     return int(mins) * 60 + float(secs)
 
 
+def time2cuetime(secs):
+    """Cue time is in mm:ss:ff where ff is 1/75 of a second"""
+    iMins = int(secs // 60)
+    secs -= 60 * iMins
+    iSecs = int(secs)
+    iFF = int(75 * (secs-iSecs))
+    return "{:02}:{:02}:{:02}".format(iMins, iSecs, iFF)
+
+
 def read_toc(devname=DEVICE):
     """Read and parse the CD TOC"""
     args = ["cdparanoia", "-d", DEVICE, "-Q"]
@@ -64,6 +76,7 @@ def read_toc(devname=DEVICE):
     assert lines[0].startswith("=================")
     lines.pop(0)
     rows = []
+    #headers = 'track', 'length', 'begin', 'copy', 'pre', 'ch'
     for line in lines:
         values = line.split()
         data = {}
@@ -104,9 +117,13 @@ class TrackInfo:
         self.offset = trackOffset
         self.artist = "unknown"
         self.title = "unknown"
+        self.begin = 0
+        self.length = 0
 
-    def add_toc_info(self, pre):
+    def add_toc_info(self, pre, begin, length):
         self.pre_emphasis = pre
+        self.begin = begin[1]
+        self.length = length[1]
 
     def add_cddb_metadata(self, metadata):
         i = self.num -1 # Cover to zero based
@@ -123,12 +140,19 @@ class TrackInfo:
         self.title = title
 
     def print_details(self):
-        print("TRACK ID={:0>2} OFF={:>6} ARTIST='{}' TITLE='{}'".format(
+        print("TRACK ID={:0>2} OFF={:>6} {} ARTIST='{}' TITLE='{}'".format(
             self.num,
             self.offset,
+            time2cuetime(self.begin),
             self.artist,
             self.title
         ))
+
+    def write_cue(self, out_fp):
+        out_fp.write('  TRACK {} AUDIO\n'.format(self.num))
+        out_fp.write('    TITLE "{}"\n'.format(self.title))
+        out_fp.write('    PERFORMER "{}"\n'.format(self.artist))
+        out_fp.write('    INDEX 01 {}\n'.format(time2cuetime(self.begin)))
 
 
 class DiscInfo(object):
@@ -148,8 +172,13 @@ class DiscInfo(object):
             self.tracks = [TrackInfo(i+1, x) for i, x in enumerate(info[2])]
             info2 = read_toc(devname)
             for row in info2:
-                self.tracks[row['track']-1].add_toc_info(row['pre'])
-                return True
+                idx = row['track']-1
+                self.tracks[idx].add_toc_info(
+                    row['pre'],
+                    row['begin'],
+                    row['length']
+                )
+            return True
         return False
 
     @property
@@ -186,3 +215,9 @@ class DiscInfo(object):
         print()
         for track in self.tracks:
             track.print_details()
+
+    def write_cuefile(self, out_fp):
+        out_fp.write('PERFORMER "{}"\n'.format(self.artist))
+        out_fp.write('TITLE "{}"\n'.format(self.title))
+        for track in self.tracks:
+            track.write_cue(out_fp)
