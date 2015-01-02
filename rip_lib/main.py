@@ -4,7 +4,7 @@ import subprocess
 import pickle
 
 import rip_lib.disc_info as disc_info
-import rip_lib.cddb as cddb
+import rip_lib.freedb as cddb
 
 DEVICE = "/dev/sr0"
 
