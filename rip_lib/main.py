@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 import rip_lib.disc_info as disc_info
 import rip_lib.freedb as cddb
 import rip_lib.musicbrainz as musz
+import rip_lib.ogg as ogg
 
 DEVICE = "/dev/sr0"
 
@@ -259,32 +260,24 @@ def ogg_filename(tmp_dir, i, multiple):
 def to_ogg(tmp_dir, info, multiple, do48k):
     """Convert WAV to OGG"""
     if multiple:
+        start_idx = 1
         end_idx = info.num_tracks+1
     else:
-        end_idx = 2
-    for idx in range(1, end_idx):
-        ogg = ogg_filename(tmp_dir, idx, multiple)
-        if not os.path.exists(ogg):
+        start_idx = 0
+        end_idx = 1
+    for idx in range(start_idx, end_idx):
+        ogg_file = ogg_filename(tmp_dir, idx, multiple)
+        if not os.path.exists(ogg_file):
             temp_file = "temp.ogg"
             if do48k:
                 wav = flac48k2wav(tmp_dir, idx, multiple)
             else:
                 wav = flac2wav(tmp_dir, idx)
             album_title, performer, track_title = process_tags(info, idx, multiple)
-            args = [
-                "oggenc", "-q", "7", "--utf8",
-                "-a", performer,
-                "-l", album_title,
-            ]
-            if multiple:
-                args += [
-                    "-t", track_title,
-                    "-N", str(idx)
-                ]
-            args += [
-                "-o", temp_file, wav
-            ]
-            execute(args, temp_file, ogg)
+            ogg.oggenc(wav, ogg_file, performer, album_title, track_title, idx)
+            if idx <= 0:
+                cover_file = os.path.join(tmp_dir, COVERFILE)
+                ogg.add_coverart(ogg_file, cover_file)
 
 
 def mp3_filename(tmp_dir, i, multiple):
@@ -298,8 +291,8 @@ def fix_ogg_tags(tmp_dir, info):
     """Fix the OGG tags"""
     for idx in range(100):
         multiple = (idx == 0)
-        ogg = ogg_filename(tmp_dir, idx, multiple)
-        if not os.path.exists(ogg):
+        ogg_file = ogg_filename(tmp_dir, idx, multiple)
+        if not os.path.exists(ogg_file):
             continue
         try:
             album_title, performer, track_title = process_tags(info, idx, multiple)
@@ -316,7 +309,7 @@ def fix_ogg_tags(tmp_dir, info):
                 "--set-tag=trackInfo={}".format(track_title),
                 "--set-tag=trackNo={}".format(idx)
             ]
-        args.append(ogg)
+        args.append(ogg_file)
         print(args)
         subprocess.call(args)
     return True
