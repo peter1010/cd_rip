@@ -2,6 +2,9 @@ import os
 import sys
 import subprocess
 import pickle
+import logging
+
+logger = logging.getLogger(__name__)
 
 import rip_lib.disc_info as disc_info
 import rip_lib.freedb as cddb
@@ -329,9 +332,7 @@ def main(working_dir):
     print(discInfo)
     if not discInfo:
         return
-    metadata = cddb.get_track_info(discInfo)
-    if metadata:
-        discInfo.add_cddb_metadata(metadata)
+    cddb.get_track_info(discInfo)
     save_pickle(tmp_dir, discInfo)
 
     read_cd(tmp_dir, discInfo)

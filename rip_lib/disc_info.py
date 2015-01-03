@@ -8,17 +8,6 @@ logger = logging.getLogger(__name__)
 DEVICE = "/dev/sr0"
 
 
-def split_on_slash(value):
-    idx = value.find(" / ")
-    if idx >= 0:
-        first = value[:idx].strip()
-        second = value[idx + 3:].strip()
-    else:
-        first = None
-        second = value.strip()
-    return first, second
-
-
 def read_discid(devname=DEVICE):
     """Perform a cd-discid call"""
     args = ["cd-discid", "--musicbrainz", devname]
@@ -26,10 +15,10 @@ def read_discid(devname=DEVICE):
     try:
         info = subprocess.check_output(args)
     except FileNotFoundError:
-        print("Check {} is installed\n".format(args[0]))
+        logger.error("Check {} is installed", args[0])
         sys.exit(1)
     except subprocess.CalledProcessError:
-        print("No CD found\n")
+        logger.error("No CD found")
         return None
     info = info.decode("ascii").split()
     if args[1] == "--musicbrainz":
@@ -134,19 +123,12 @@ class TrackInfo:
         self.begin = begin[1]
         self.length = length[1]
 
-    def add_cddb_metadata(self, metadata):
-        i = self.num -1 # Cover to zero based
-        try:
-            ttitle = metadata["TTITLE%i" % i]
-        except KeyError:
-            try:
-                ttitle = metadata["TTITLE%02i" % i]
-            except KeyError:
-                return
-        artist, title = split_on_slash(ttitle)
+    def set_title(self, title):
+        self.title = title
+
+    def set_artist(self, artist):
         if artist is not None:
             self.artist = artist
-        self.title = title
 
     def print_details(self):
         print("TRACK ID={:0>2} OFF={:>6} {} ARTIST='{}' TITLE='{}'".format(
@@ -215,19 +197,17 @@ class DiscInfo(object):
             self.disc_len, ",".join([str(x.offset) for x in self.tracks])
         )
 
-    def add_cddb_metadata(self, metadata):
-        try:
-            artist, title = split_on_slash(metadata["DTITLE"])
-        except KeyError:
-            artist, title = None, None
+    def set_artist(self, artist):
         if artist:
+            self.artist = artist
             for track in self.tracks:
-                track.artist = artist
+                if track.artist is None:
+                    track.artist = artist
+
+    def set_title(self, title):
         if title:
             self.title = title
 
-        for track in self.tracks:
-            track.add_cddb_metadata(metadata)
 
     def print_details(self):
         print()
