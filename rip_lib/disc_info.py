@@ -57,10 +57,10 @@ def read_toc(devname=DEVICE):
     try:
         info = subprocess.check_output(args, stderr=subprocess.STDOUT)
     except FileNotFoundError:
-        print("Check {} is installed\n".format(args[0]))
+        logger.error("Check {} is installed", args[0])
         sys.exit(1)
     except subprocess.CalledProcessError:
-        print("No CD found\n")
+        logger.error("No CD found")
         return None
     lines = info.decode("ascii").splitlines()
     assert lines[0].startswith("cdparanoia")
@@ -121,7 +121,8 @@ class TrackInfo:
     def add_toc_info(self, pre, begin, length):
         self.pre_emphasis = pre
         self.begin = begin[1]
-        self.length = length[1]
+        print("length", length)
+        self.length = length[0]
 
     def set_title(self, title):
         self.title = title
@@ -131,9 +132,10 @@ class TrackInfo:
             self.artist = artist
 
     def print_details(self):
-        print("TRACK ID={:0>2} OFF={:>6} {} ARTIST='{}' TITLE='{}'".format(
+        print("[{:0>2}] OFF={:>6} LEN={:>6} {} '{}' / '{}'".format(
             self.num,
             self.offset,
+            self.length,
             time2cuetime(self.begin),
             self.artist,
             self.title
@@ -211,10 +213,12 @@ class DiscInfo(object):
 
     def print_details(self):
         print()
-        print("LENGTH={:>6} ARTIST='{}' TITLE='{}'".format(
-            self.disc_len,
+        print("'{}' / '{}' LEAD_IN={} LENGTH={} FFS={}".format(
             self.artist,
-            self.title
+            self.title,
+            self.lead_in,
+            self.disc_len,
+            self.fps
         ))
         print()
         for track in self.tracks:
