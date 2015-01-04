@@ -162,7 +162,7 @@ def read_cd(tmp_dir, info):
     temp_file = "temp.wav"
     wav_file = os.path.join(tmp_dir, WAVFILE)
     flac_file = os.path.join(tmp_dir, FLACFILE)
-    if not os.path.exists(wav_file) or not os.path.exists(flac_file):
+    if not (os.path.exists(wav_file) or os.path.exists(flac_file)):
         args = [
             "cdparanoia",
             "-d", DEVICE,
@@ -190,7 +190,7 @@ def write_cue_file(tmp_dir, info):
 def get_coverart(tmp_dir, info):
     cover_file = os.path.join(tmp_dir, COVERFILE)
     if not os.path.exists(cover_file):
-        musz.get_track_info(discInfo, cover_file)
+        musz.get_track_info(info, cover_file)
     else:
         logger.info("Cover Art already fetched")
 
