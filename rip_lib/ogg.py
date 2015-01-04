@@ -99,10 +99,10 @@ def oggenc(wav_file, ogg_file, performer, album_title, track_title, idx):
         "-q", "7", "--utf8",
         "-a", performer,
         "-l", album_title,
+        "-t", track_title,
     ]
     if idx > 0:
         args += [
-            "-t", track_title,
             "-N", str(idx)
         ]
     args += [

@@ -302,11 +302,11 @@ def fix_ogg_tags(tmp_dir, info):
         args = [
             "metaflac", "--remove-all-tags",
             "--set-tag=album={}".format(album_title),
-            "--set-tag=performer={}".format(performer)
+            "--set-tag=performer={}".format(performer),
+            "--set-tag=trackInfo={}".format(track_title)
         ]
         if multiple:
             args += [
-                "--set-tag=trackInfo={}".format(track_title),
                 "--set-tag=trackNo={}".format(idx)
             ]
         args.append(ogg_file)
@@ -332,11 +332,11 @@ def to_mp3(tmp_dir, info, multiple, do48k):
             album_title, performer, track_title = process_tags(info, idx, multiple)
             args = ["lame", "-V", "5",
                 "--ta", performer,
-                "--tl", album_title
+                "--tl", album_title,
+                "--tt", track_title,
             ]
             if multiple:
                 args += [
-                    "--tt", track_title,
                     "--tn", str(idx),
                 ]
             args += [wav, temp_file]
@@ -357,7 +357,8 @@ def fix_mp3_tags(tmp_dir, info, i):
         args = [
             "id3tag", 
             "-a", performer,
-            "-A", album_title
+            "-A", album_title,
+            "-s", track_title
         ]
         if multiple:
             args += [
