@@ -8,7 +8,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-DEF_SERVER = 'http://musicbrainz.org/ws/2/'
+MUSICBRAINZ_SERVER = 'http://musicbrainz.org/ws/2/'
 COVER_SERVER = 'http://coverartarchive.org/release/'
 
 def mbase64(data):
@@ -57,7 +57,7 @@ def perform_request(url):
     return "".join(lines)
 
 
-def query_database(disc_info, server_url=DEF_SERVER):
+def query_database(disc_info, server_url=MUSICBRAINZ_SERVER):
     """Query the musicbrainz server using disc ID"""
     disc_id = musicbrainz_disc_id(disc_info)
     url = "{0}discid/{1}/?fmt=json".format(
@@ -89,7 +89,7 @@ def query_database(disc_info, server_url=DEF_SERVER):
     return possible_discs[selection]
 
 
-def read_track_metadata(disc_info, server_url=DEF_SERVER):
+def read_track_metadata(disc_info, server_url=MUSICBRAINZ_SERVER):
     url = "{0}release/{1}/?inc=recordings&fmt=json".format(
         server_url, disc_info.mbid
     )
@@ -111,7 +111,7 @@ def read_track_metadata(disc_info, server_url=DEF_SERVER):
 def get_coverart(disc_info, filename="cover.jpg", server_url=COVER_SERVER):
     """Read the covert art, the mbid must be known"""
     if not hasattr(disc_info, "mbid") or disc_info is None:
-        entry = query_database(disc_info, cddb_srv)
+        entry = query_database(disc_info, MUSICBRAINZ_SERVER)
         if entry is None:
             disc_info.title = "unknown"
             return None
@@ -139,10 +139,10 @@ def get_coverart(disc_info, filename="cover.jpg", server_url=COVER_SERVER):
         out_fp.write(response.read())
 
 
-def get_track_info(disc_info, cddb_srv=DEF_SERVER):
+def get_track_info(disc_info, server_url=MUSICBRAINZ_SERVER):
     """Get the Track Info"""
     if not hasattr(disc_info, "mbid") or disc_info is None:
-        entry = query_database(disc_info, cddb_srv)
+        entry = query_database(disc_info, server_url)
         if entry is None:
             disc_info.title = "unknown"
             return None

@@ -190,7 +190,7 @@ def write_cue_file(tmp_dir, info):
 def get_coverart(tmp_dir, info):
     cover_file = os.path.join(tmp_dir, COVERFILE)
     if not os.path.exists(cover_file):
-        musz.get_track_info(info, cover_file)
+        musz.get_coverart(info, cover_file)
     else:
         logger.info("Cover Art already fetched")
 

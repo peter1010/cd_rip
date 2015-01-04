@@ -113,8 +113,8 @@ class TrackInfo:
         # Track Number is one-based
         self.num = trackNum
         self.offset = trackOffset
-        self.artist = "unknown"
-        self.title = "unknown"
+        self._artist = None
+        self._title = None
         self.begin = 0
         self.length = 0
 
@@ -125,11 +125,26 @@ class TrackInfo:
         self.length = length[0]
 
     def set_title(self, title):
-        self.title = title
+        if title:
+            self._title = title
+
+    def get_title(self):
+        if self._title is None:
+            return "unknown"
+        return self._title
+
+    title = property(get_title, set_title)
 
     def set_artist(self, artist):
         if artist is not None:
-            self.artist = artist
+            self._artist = artist
+
+    def get_artist(self):
+        if self._artist is None:
+            return "unknown"
+        return self._artist
+
+    artist = property(get_artist, set_artist)
 
     def print_details(self):
         print("[{:0>2}] OFF={:>6} LEN={:>6} {} '{}' / '{}'".format(
@@ -153,8 +168,8 @@ class DiscInfo(object):
     def __init__(self, fps=75):
         self.disc_len = 0
         self.tracks = []
-        self.title = None
-        self.artist = None
+        self._title = None
+        self._artist = None
         self.fps = fps
 
     def disc_total_playtime(self):
@@ -200,16 +215,32 @@ class DiscInfo(object):
         )
 
     def set_artist(self, artist):
+        """Set the artist name for the Disc"""
         if artist:
-            self.artist = artist
+            self._artist = artist
             for track in self.tracks:
-                if track.artist is None:
-                    track.artist = artist
+                track.set_artist(artist)
+
+
+    def get_artist(self):
+        """Get the artist name for the Disc"""
+        if self._artist is None:
+            return "unknown"
+        return self._artist
+
+    artist = property(get_artist, set_artist)
 
     def set_title(self, title):
+        """Set the title for the disc"""
         if title:
-            self.title = title
+            self._title = title
 
+    def get_title(self):
+        if self._title is None:
+            return "unkown"
+        return self._title
+
+    title = property(get_title, set_title)
 
     def print_details(self):
         print()
