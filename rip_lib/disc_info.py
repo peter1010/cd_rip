@@ -15,7 +15,7 @@ def read_discid(devname=DEVICE):
     try:
         info = subprocess.check_output(args)
     except FileNotFoundError:
-        logger.error("Check {} is installed", args[0])
+        logger.error("Check %s is installed", args[0])
         sys.exit(1)
     except subprocess.CalledProcessError:
         logger.error("No CD found")
@@ -57,7 +57,7 @@ def read_toc(devname=DEVICE):
     try:
         info = subprocess.check_output(args, stderr=subprocess.STDOUT)
     except FileNotFoundError:
-        logger.error("Check {} is installed", args[0])
+        logger.error("Check %s is installed", args[0])
         sys.exit(1)
     except subprocess.CalledProcessError:
         logger.error("No CD found")
