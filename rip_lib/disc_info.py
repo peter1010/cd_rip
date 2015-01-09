@@ -6,9 +6,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 DEVICE = "/dev/sr0"
+DEF_FPS = 75
+DEF_LEAD_IN = 150
 
-
-def read_discid(devname=DEVICE):
+def call_cd_discid(devname=DEVICE):
     """Perform a cd-discid call"""
     args = ["cd-discid", "--musicbrainz", devname]
 #    args = ["cd-discid", devname]
@@ -16,23 +17,12 @@ def read_discid(devname=DEVICE):
         info = subprocess.check_output(args)
     except FileNotFoundError:
         logger.error("Check %s is installed", args[0])
-        sys.exit(1)
+        return None, False
     except subprocess.CalledProcessError:
         logger.error("No CD found")
-        return None
+        return None, False
     info = info.decode("ascii").split()
-    if args[1] == "--musicbrainz":
-        disc_id = None
-        num_tracks = int(info[0])
-        tracks = [int(x) for x in info[1:-1]]
-        disc_len = int(info[-1])
-    else:
-        disc_id = info[0]
-        num_tracks = int(info[1])
-        tracks = [int(x) for x in info[2:-1]]
-        disc_len = 75 * int(info[-1])
-    assert num_tracks == len(tracks)
-    return (disc_id, disc_len, tracks)
+    return info, args[1] == "--musicbrainz"
 
 
 def timeStr2time(line):
@@ -42,26 +32,26 @@ def timeStr2time(line):
     return int(mins) * 60 + float(secs)
 
 
-def time2cuetime(secs):
+def time2cuetime(secs, fps=DEF_FPS):
     """Cue time is in mm:ss:ff where ff is 1/75 of a second"""
     iMins = int(secs // 60)
     secs -= 60 * iMins
     iSecs = int(secs)
-    iFF = int(75 * (secs-iSecs))
+    iFF = int(fps * (secs-iSecs))
     return "{:02}:{:02}:{:02}".format(iMins, iSecs, iFF)
 
 
-def read_toc(devname=DEVICE):
+def read_toc(devname=DEVICE, lead_in=DEF_LEAD_IN):
     """Read and parse the CD TOC"""
     args = ["cdparanoia", "-d", DEVICE, "-Q"]
     try:
         info = subprocess.check_output(args, stderr=subprocess.STDOUT)
     except FileNotFoundError:
         logger.error("Check %s is installed", args[0])
-        sys.exit(1)
+        return None, 0
     except subprocess.CalledProcessError:
         logger.error("No CD found")
-        return None
+        return None, 0
     lines = info.decode("ascii").splitlines()
     assert lines[0].startswith("cdparanoia")
     lines.pop(0)
@@ -81,6 +71,8 @@ def read_toc(devname=DEVICE):
         for hdr in headers:
             if hdr in ("length", "begin"):
                 sectors, time, values = values[0], values[1], values[2:]
+                if hdr == "begin":
+                    sectors = int(sectors) + lead_in
                 value = (int(sectors), timeStr2time(time))
             else:
                 value, values = values[0], values[1:]
@@ -95,6 +87,7 @@ def read_toc(devname=DEVICE):
                 elif hdr == "track":
                     if value == "TOTAL":
                         data = None
+                        disc_len = lead_in + int(values[0])
                         break
                     assert value[-1] == '.'
                     value = int(value[:-1])
@@ -104,8 +97,7 @@ def read_toc(devname=DEVICE):
         if not data:
             break
         rows.append(data)
-    return rows
-
+    return rows, disc_len
 
 
 class TrackInfo:
@@ -165,7 +157,7 @@ class TrackInfo:
 
 class DiscInfo(object):
 
-    def __init__(self, fps=75):
+    def __init__(self, fps=DEF_FPS):
         self.disc_len = 0
         self.tracks = []
         self._title = None
@@ -175,35 +167,66 @@ class DiscInfo(object):
     def disc_total_playtime(self):
         return int((self.disc_len - self.lead_in) // self.fps)
 
-    def read_disk(self, devname=DEVICE):
-        info = read_discid(devname)
-        if info:
+    def _read_discid(self, devname=DEVICE, fps=DEF_FPS):
+        """Perform a cd-discid call"""
+        info, is_musicbrainz = call_cd_discid(devname)
+        if info is None:
+            return False
+        if is_musicbrainz:
+            num_tracks = int(info[0])
+            tracks = [int(x) for x in info[1:-1]]
+            disc_len = int(info[-1])
+        else:
             disc_id = info[0]
-            self.disc_len = info[1]
-            self.lead_in = info[2][0]
-            self.tracks = [TrackInfo(i+1, x) for i, x in enumerate(info[2])]
-            if disc_id:
-                try:
-                    import rip_lib.freedb as freedb
-                    assert disc_id == freedb.freedb_disc_id(self)
-                except ImportError:
-                    pass
-            if True:
-                try:
-                    import rip_lib.musicbrainz as musz
-                    assert musz.musicbrainz_disc_id(self)
-                except ImportError:
-                    pass
-            info2 = read_toc(devname)
-            for row in info2:
-                idx = row['track']-1
-                self.tracks[idx].add_toc_info(
-                    row['pre'],
-                    row['begin'],
-                    row['length']
-                )
-            return True
-        return False
+            try:
+                import rip_lib.freedb as freedb
+                assert disc_id == freedb.freedb_disc_id(self)
+            except ImportError:
+                pass
+            num_tracks = int(info[1])
+            tracks = [int(x) for x in info[2:-1]]
+            disc_len = fps * int(info[-1])
+        assert num_tracks == len(tracks)
+        self.disc_len = disc_len
+        self.lead_in = tracks[0]
+        self.tracks = [TrackInfo(i+1, x) for i, x in enumerate(tracks)]
+        return True
+
+    def _read_toc(self, devname=DEVICE):
+        info, disc_len = read_toc(devname)
+        if info is None:
+            return False
+        for row in info:
+            idx = row['track']-1
+            if idx == 0:
+                self.lead_in = row['begin'][0]
+            try:
+                track = self.tracks[idx]
+            except IndexError:
+                self.tracks += [None] * (idx - len(self.tracks) + 1)
+                track = self.tracks[idx]
+            if track is None:
+                track = TrackInfo(idx+1, row['begin'][0])
+                self.tracks[idx] = track
+            track.add_toc_info(
+                row['pre'],
+                row['begin'],
+                row['length']
+            )
+        self.disc_len = disc_len
+        return True
+
+    def read_disk(self, devname=DEVICE):
+        self._read_discid(devname)
+        self._read_toc(devname)
+        if True:
+            try:
+                import rip_lib.musicbrainz as musz
+                assert musz.musicbrainz_disc_id(self)
+            except ImportError:
+                pass
+        return True
+
 
     @property
     def num_tracks(self):
