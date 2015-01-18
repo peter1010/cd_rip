@@ -92,8 +92,10 @@ def get_query_str(disc_info):
     parts.append(str(disc_info.num_tracks))
     for track in disc_info.tracks:
         parts.append(str(track.offset))
-    parts.append(str(disc_info.disc_len))
-    return "cmd=cddb+query+{}".format(urllib.parse.quote_plus(" ".join(parts)))
+    parts.append(str(disc_info.calc_disc_len()))
+    return "cmd=cddb+query+{}".format(
+        urllib.parse.quote_plus(" ".join(parts))
+    )
 
 
 def get_read_str(disc_info):

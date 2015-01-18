@@ -112,6 +112,7 @@ def process_tags(info, idx, multiple):
 def load_pickle(tmp_dir):
     """Load the Disk information from a pickle file"""
     try:
+        logger.debug("Loading pickle.info")
         with open(os.path.join(tmp_dir, "pickle.info"), "rb") as pkl_fd:
             info = pickle.load(pkl_fd)
     except FileNotFoundError:
@@ -127,8 +128,10 @@ def save_pickle(tmp_dir, info):
     pkl_fd.close()
 
 
-def make_tmp_dir(working_dir):
-    """Make the tmp directory"""
+def get_wip_dir(working_dir):
+    """Get or Make the tmp working directory"""
+    if os.path.exists("pickle.info"):
+        return "."
     tmp_dir = os.path.join(working_dir, "tmp_rip")
     try:
         os.mkdir(tmp_dir)
@@ -378,7 +381,7 @@ def rename_tmp_dir(tmp_dir, info):
 
 
 def main(working_dir):
-    tmp_dir = make_tmp_dir(working_dir)
+    tmp_dir = get_wip_dir(working_dir)
 
     discInfo = disc_info.DiscInfo()
     if not discInfo.read_disk(DEVICE):
@@ -387,6 +390,7 @@ def main(working_dir):
     if not discInfo:
         return
     cddb.get_track_info(discInfo)
+    musz.get_track_info(discInfo)
     save_pickle(tmp_dir, discInfo)
 
     read_cd(tmp_dir, discInfo)

@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 DEVICE = "/dev/sr0"
 DEF_FPS = 75
+CUE_RES = 75.0 # Cue file expresses LSB time in 1/75th of sec
 DEF_LEAD_IN = 150
 
 def call_cd_discid(devname=DEVICE):
@@ -29,19 +30,28 @@ def timeStr2time(line):
     assert line[0] == '[' and line[-1] == ']'
     line = line[1:-1]
     mins, secs = line.split(":")
-    return int(mins) * 60 + float(secs)
+    secs, sectors = secs.split(".")
+    return int(mins) * 60 + int(secs) + int(sectors) / CUE_RES
 
 
-def time2cuetime(secs, fps=DEF_FPS):
+def time2cuetime(secs):
     """Cue time is in mm:ss:ff where ff is 1/75 of a second"""
     iMins = int(secs // 60)
     secs -= 60 * iMins
     iSecs = int(secs)
-    iFF = int(fps * (secs-iSecs))
+    iFF = int(CUE_RES * (secs-iSecs))
     return "{:02}:{:02}:{:02}".format(iMins, iSecs, iFF)
 
+def str2bool(value):
+    value = value.lower()
+    if value == 'no':
+        return False
+    if value == 'yes':
+        return True
+    raise ValueError(value)
 
-def read_toc(devname=DEVICE, lead_in=DEF_LEAD_IN):
+
+def read_toc(devname=DEVICE, lead_in=DEF_LEAD_IN, fps=DEF_FPS):
     """Read and parse the CD TOC"""
     args = ["cdparanoia", "-d", DEVICE, "-Q"]
     try:
@@ -71,19 +81,18 @@ def read_toc(devname=DEVICE, lead_in=DEF_LEAD_IN):
         for hdr in headers:
             if hdr in ("length", "begin"):
                 sectors, time, values = values[0], values[1], values[2:]
+                time = timeStr2time(time)
+                sectors = int(sectors)
+                if time > 0:
+                    fps = int(0.5 + sectors / time)
+                    assert fps == DEF_FPS
                 if hdr == "begin":
-                    sectors = int(sectors) + lead_in
-                value = (int(sectors), timeStr2time(time))
+                    sectors += lead_in
+                value = sectors
             else:
                 value, values = values[0], values[1:]
                 if hdr in ("copy", "pre"):
-                    value = value.lower()
-                    if value == 'no':
-                        value = False
-                    elif value == 'yes':
-                        value = True
-                    else:
-                        raise RuntimeError(value)
+                    value = str2bool(value)
                 elif hdr == "track":
                     if value == "TOTAL":
                         data = None
@@ -110,11 +119,13 @@ class TrackInfo:
         self.begin = 0
         self.length = 0
 
-    def add_toc_info(self, pre, begin, length):
+    def calc_start_time(self):
+        """Return start time in seconds"""
+        return (self.offset - self.disc.lead_in) // self.disc.fps
+
+    def add_toc_info(self, pre, length):
         self.pre_emphasis = pre
-        self.begin = begin[1]
-        print("length", length)
-        self.length = length[0]
+        self.length = length
 
     def set_title(self, title):
         if title:
@@ -143,7 +154,7 @@ class TrackInfo:
             self.num,
             self.offset,
             self.length,
-            time2cuetime(self.begin),
+            time2cuetime(self.calc_start_time()),
             self.artist,
             self.title
         ))
@@ -152,20 +163,38 @@ class TrackInfo:
         out_fp.write('  TRACK {} AUDIO\n'.format(self.num))
         out_fp.write('    TITLE "{}"\n'.format(self.title))
         out_fp.write('    PERFORMER "{}"\n'.format(self.artist))
-        out_fp.write('    INDEX 01 {}\n'.format(time2cuetime(self.begin)))
+        out_fp.write('    INDEX 01 {}\n'.format(
+            time2cuetime(self.calc_start_time()))
+        )
 
 
 class DiscInfo(object):
+    """Holds information about a disk, all duration units
+    are in frames (i.e. disc sectors)"""
 
-    def __init__(self, fps=DEF_FPS):
-        self.disc_len = 0
+    def __init__(self, fps=DEF_FPS, lead_in=DEF_LEAD_IN):
         self.tracks = []
         self._title = None
         self._artist = None
         self.fps = fps
+        self.lead_in = lead_in
+
+    def calc_disc_len(self):
+        return self.lead_in + \
+                sum([track.length for track in self.tracks])
 
     def disc_total_playtime(self):
-        return int((self.disc_len - self.lead_in) // self.fps)
+        return int((self.calc_disc_len() - self.lead_in) // self.fps)
+
+    def add_track(self, track_num, track_offset):
+        for track in self.tracks:
+            if track.num == track_num:
+                track.offset = track_offset
+                return track
+        track = TrackInfo(track_num, track_offset)
+        track.disc = self
+        self.tracks.append(track)
+        return track
 
     def _read_discid(self, devname=DEVICE, fps=DEF_FPS):
         """Perform a cd-discid call"""
@@ -174,58 +203,64 @@ class DiscInfo(object):
             return False
         if is_musicbrainz:
             num_tracks = int(info[0])
-            tracks = [int(x) for x in info[1:-1]]
+            offsets = [int(x) for x in info[1:-1]]
             disc_len = int(info[-1])
         else:
+            ### TO REMOVE, A cross-check
             disc_id = info[0]
             try:
                 import rip_lib.freedb as freedb
                 assert disc_id == freedb.freedb_disc_id(self)
             except ImportError:
                 pass
+            ###
             num_tracks = int(info[1])
-            tracks = [int(x) for x in info[2:-1]]
+            offsets = [int(x) for x in info[2:-1]]
             disc_len = fps * int(info[-1])
-        assert num_tracks == len(tracks)
-        self.disc_len = disc_len
-        self.lead_in = tracks[0]
-        self.tracks = [TrackInfo(i+1, x) for i, x in enumerate(tracks)]
+        assert num_tracks == len(offsets)
+        lengths = [offsets[i+1] - offsets[i] \
+            for i in range(num_tracks-1)
+        ]
+        lengths.append(disc_len - offsets[-1])
+        self.lead_in = offsets[0]
+        for i, offset in enumerate(offsets):
+            track = self.add_track(i+1, offset)
+            track.length = lengths[i]
+        assert disc_len == self.calc_disc_len()
         return True
 
     def _read_toc(self, devname=DEVICE):
-        info, disc_len = read_toc(devname)
+        self.lead_in = DEF_LEAD_IN
+        info, disc_len = read_toc(devname, self.lead_in)
         if info is None:
             return False
+        self.fps = DEF_FPS
         for row in info:
-            idx = row['track']-1
-            if idx == 0:
-                self.lead_in = row['begin'][0]
-            try:
-                track = self.tracks[idx]
-            except IndexError:
-                self.tracks += [None] * (idx - len(self.tracks) + 1)
-                track = self.tracks[idx]
-            if track is None:
-                track = TrackInfo(idx+1, row['begin'][0])
-                self.tracks[idx] = track
+            num = row['track']
+            offset = row['begin']
+            if num == 1:
+                assert self.lead_in == offset
+            track = self.add_track(num, offset)
             track.add_toc_info(
                 row['pre'],
-                row['begin'],
                 row['length']
             )
-        self.disc_len = disc_len
+        assert disc_len == self.calc_disc_len()
         return True
 
     def read_disk(self, devname=DEVICE):
-        self._read_discid(devname)
-        self._read_toc(devname)
-        if True:
+        got = self._read_discid(devname)
+        got = self._read_toc(devname) or got
+        if got:
+            ### TO REMOVE, A cross-check
             try:
                 import rip_lib.musicbrainz as musz
                 assert musz.musicbrainz_disc_id(self)
             except ImportError:
                 pass
-        return True
+            ###
+            return True
+        return False
 
 
     @property
@@ -234,7 +269,8 @@ class DiscInfo(object):
 
     def __repr__(self):
         return "DiscLen:{} - ({})".format(
-            self.disc_len, ",".join([str(x.offset) for x in self.tracks])
+            self.calc_disc_len(),
+            ",".join([str(x.offset) for x in self.tracks])
         )
 
     def set_artist(self, artist):
@@ -271,7 +307,7 @@ class DiscInfo(object):
             self.artist,
             self.title,
             self.lead_in,
-            self.disc_len,
+            self.calc_disc_len(),
             self.fps
         ))
         print()

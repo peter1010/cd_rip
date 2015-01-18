@@ -25,7 +25,7 @@ def musicbrainz_disc_id(disc_info):
     data = []
     data.append("{:02X}".format(1))
     data.append("{:02X}".format(len(disc_info.tracks)))
-    data.append("{:08X}".format(disc_info.disc_len))
+    data.append("{:08X}".format(disc_info.calc_disc_len()))
     for track in disc_info.tracks:
         data.append("{:08X}".format(track.offset))
     data += ["00000000"] * (99 - len(disc_info.tracks))
@@ -71,10 +71,10 @@ def query_database(disc_info, server_url=MUSICBRAINZ_SERVER):
     releases = obj["releases"]
     possible_discs = []
     for rel in releases:
-#        print("MBID:{}".format(rel["id"]))
-#        print("title:{}".format(rel["title"]))
-#        print(json.dumps(rel, sort_keys=True, indent=4))
-        possible_discs.append((rel["title"], rel["id"]))
+        mbid, title = rel["id"], rel["title"]
+        logger.info("MBID=%s title=%s", mbid, title)
+        # print(json.dumps(rel, sort_keys=True, indent=4))
+        possible_discs.append((title, mbid))
     if possible_discs is None:
         return None
 
@@ -90,25 +90,29 @@ def query_database(disc_info, server_url=MUSICBRAINZ_SERVER):
 
 
 def read_track_metadata(disc_info, server_url=MUSICBRAINZ_SERVER):
-    url = "{0}release/{1}/?inc=recordings&fmt=json".format(
+    url = "{0}release/{1}/?inc=artist-credits+recordings&fmt=json".format(
         server_url, disc_info.mbid
     )
     data = perform_request(url)
     if data is None:
         return None
     obj = json.loads(data)
+    print(json.dumps(obj, sort_keys=True, indent=4))
     assert obj["id"] == disc_info.mbid
     media = obj["media"]
     assert(len(media) == 1)
     media = media[0]
     for track in media["tracks"]:
-        print(json.dumps(track, sort_keys=True, indent=4))
-        print("TRACK {}".format(track["number"]))
-        print("LENGTH {}".format(track["length"]))
-        print("TITLE {}".format(track["title"]))
+#        print(json.dumps(track, sort_keys=True, indent=4))
+        num = int(track["number"])
+        length = int(track["length"])
+        title = track["title"]
+        logger.info("[%i] %s (%i)", num, title, length)
 
 
-def get_coverart(disc_info, filename="cover.jpg", server_url=COVER_SERVER):
+def get_coverart(disc_info, filename="cover.jpg",
+    server_url=COVER_SERVER
+):
     """Read the covert art, the mbid must be known"""
     if not hasattr(disc_info, "mbid") or disc_info is None:
         entry = query_database(disc_info, MUSICBRAINZ_SERVER)
