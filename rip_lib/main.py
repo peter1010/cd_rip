@@ -275,9 +275,13 @@ def to_ogg(tmp_dir, info, multiple, do48k):
             if do48k:
                 wav = flac48k2wav(tmp_dir, idx, multiple)
             else:
-                wav = flac2wav(tmp_dir, idx)
-            album_title, performer, track_title = process_tags(info, idx, multiple)
-            ogg.oggenc(wav, ogg_file, performer, album_title, track_title, idx)
+                wav = flac2wav(tmp_dir, idx, multiple)
+            album_title, performer, track_title = process_tags(
+                info, idx, multiple
+            )
+            ogg.oggenc(wav, ogg_file, performer, album_title,
+                track_title, idx
+            )
             if idx <= 0:
                 cover_file = os.path.join(tmp_dir, COVERFILE)
                 ogg.add_coverart(ogg_file, cover_file)
@@ -331,8 +335,10 @@ def to_mp3(tmp_dir, info, multiple, do48k):
             if do48k:
                 wav = flac48k2wav(tmp_dir, idx, multiple)
             else:
-                wav = flac2wav(tmp_dir, idx)
-            album_title, performer, track_title = process_tags(info, idx, multiple)
+                wav = flac2wav(tmp_dir, idx, multiple)
+            album_title, performer, track_title = process_tags(
+                info, idx, multiple
+            )
             args = ["lame", "-V", "5",
                 "--ta", performer,
                 "--tl", album_title,
@@ -389,8 +395,8 @@ def main(working_dir):
     print(discInfo)
     if not discInfo:
         return
-    cddb.get_track_info(discInfo)
-    musz.get_track_info(discInfo)
+    if not musz.get_track_info(discInfo):
+        cddb.get_track_info(discInfo)
     save_pickle(tmp_dir, discInfo)
 
     read_cd(tmp_dir, discInfo)

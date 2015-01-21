@@ -186,14 +186,20 @@ class DiscInfo(object):
     def disc_total_playtime(self):
         return int((self.calc_disc_len() - self.lead_in) // self.fps)
 
-    def add_track(self, track_num, track_offset):
+    def get_track(self, track_num):
         for track in self.tracks:
             if track.num == track_num:
-                track.offset = track_offset
                 return track
-        track = TrackInfo(track_num, track_offset)
-        track.disc = self
-        self.tracks.append(track)
+        return None
+
+    def add_track(self, track_num, track_offset):
+        track = self.get_track(track_num)
+        if track:
+            track.offset = track_offset
+        else:
+            track = TrackInfo(track_num, track_offset)
+            track.disc = self
+            self.tracks.append(track)
         return track
 
     def _read_discid(self, devname=DEVICE, fps=DEF_FPS):
@@ -317,5 +323,6 @@ class DiscInfo(object):
     def write_cuefile(self, out_fp):
         out_fp.write('PERFORMER "{}"\n'.format(self.artist))
         out_fp.write('TITLE "{}"\n'.format(self.title))
+        out_fp.write('FILE "disc.ogg" WAVE\n')
         for track in self.tracks:
             track.write_cue(out_fp)

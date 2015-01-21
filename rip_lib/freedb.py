@@ -4,6 +4,7 @@ import urllib.request
 import urllib.parse
 import functools
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -107,13 +108,26 @@ def get_read_str(disc_info):
 
 def perform_request(server_url, query_str, hello_str, proto_str):
     """Perform a read request to server"""
-    url = "%s?%s&%s&%s" % (server_url, query_str, hello_str, proto_str)
+    url = "{}?{}&{}&{}".format(
+        server_url, query_str, hello_str, proto_str
+    )
     logger.debug("GET %s", url)
-    try:
-        response = urllib.request.urlopen(url)
-    except urllib.error.URLError as err:
+    for i in range(4):
+        try:
+            response = urllib.request.urlopen(url)
+        except urllib.error.HTTPError as err:
+            time.sleep(3)
+            if err.code == 503:
+                continue
+        except urllib.error.URLError as err:
+            logger.error("Failed to connect to '%s' %s", server_url, err)
+            return None
+        break
+    else:
         logger.error("Failed to connect to '%s' %s", server_url, err)
         return None
+
+
     lines = []
     for line in response.readlines():
         try:
@@ -195,7 +209,8 @@ def read_cddb_metadata(disc_info, server_url=DEF_SERVER):
     status_code = int(header[0])
     entries = {}
 
-    if status_code == 210 or status_code == 417:  # success or access denied
+    if status_code == 210 or status_code == 417:
+        # success or access denied
         for line in lines:
             if line == '.':
                 break
