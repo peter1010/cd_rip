@@ -93,16 +93,16 @@ def get_query_str(disc_info):
     parts.append(str(disc_info.num_tracks))
     for track in disc_info.tracks:
         parts.append(str(track.offset))
-    parts.append(str(disc_info.calc_disc_len()))
+    parts.append(str(disc_info.calc_disc_len_in_secs()))
     return "cmd=cddb+query+{}".format(
         urllib.parse.quote_plus(" ".join(parts))
     )
 
 
-def get_read_str(disc_info):
+def get_read_str(disc_info, disc_id):
     """Return the string to send to server to read disc info"""
     return "cmd=cddb+read+{}+{}".format(
-        disc_info.category, freedb_disc_id(disc_info)
+        disc_info.category, disc_id
     )
 
 
@@ -143,8 +143,9 @@ def perform_request(server_url, query_str, hello_str, proto_str):
 class CddbEntry(object):
     """Hold a CBBD entry"""
 
-    def __init__(self, category, name):
+    def __init__(self, category, disc_id, name):
         self.category = category
+        self.disc_id = disc_id
         self.artist, self.title = split_on_slash(name)
 
     def name(self):
@@ -168,17 +169,19 @@ def query_cddb(disc_info, server_url=DEF_SERVER):
 
     if status_code == 200:		# OK
         assert header[2] == disc_id
-        possible_discs.append(CddbEntry(header[1], header[3]))
+        possible_discs.append(CddbEntry(header[1], header[2], header[3]))
 
     elif status_code == 211 or status_code == 210:  # multiple matches
         for line in lines:
             if line == '.':		# end of matches
                 break
+            logger.debug("%s", line)
             # three elements in line: category, disc-id, artist / title
             body = line.split(' ', 2)
 
-            if body[1] == disc_id:
-                possible_discs.append(CddbEntry(body[0], body[2]))
+#            if body[1] == disc_id:
+            if True:
+                possible_discs.append(CddbEntry(body[0], body[1], body[2]))
 
     else:
         logger.error("Error code %i received", status_code)
@@ -197,11 +200,15 @@ def query_cddb(disc_info, server_url=DEF_SERVER):
     return possible_discs[selection]
 
 
-def read_cddb_metadata(disc_info, server_url=DEF_SERVER):
+def read_cddb_metadata(disc_info, disc_id, server_url=DEF_SERVER):
     """Read Metadata from the CBBD server"""
     assert disc_info.category
-    lines = perform_request(server_url, get_read_str(disc_info),
-                            get_hello_str(), get_proto_str())
+    lines = perform_request(
+        server_url,
+        get_read_str(disc_info, disc_id),
+        get_hello_str(),
+        get_proto_str()
+    )
     if lines is None:
         return None
 
@@ -253,7 +260,7 @@ def get_track_info(disc_info, cddb_srv=DEF_SERVER):
     disc_info.set_artist(entry.artist)
     disc_info.category = entry.category
 
-    metadata = read_cddb_metadata(disc_info, cddb_srv)
+    metadata = read_cddb_metadata(disc_info, entry.disc_id, cddb_srv)
 
     try:
         artist, title = split_on_slash(metadata["DTITLE"])

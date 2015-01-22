@@ -46,7 +46,7 @@ def str2bool(value):
     value = value.lower()
     if value == 'no':
         return False
-    if value == 'yes':
+    if value in('yes', 'ok'):
         return True
     raise ValueError(value)
 
@@ -182,6 +182,9 @@ class DiscInfo(object):
     def calc_disc_len(self):
         return self.lead_in + \
                 sum([track.length for track in self.tracks])
+
+    def calc_disc_len_in_secs(self):
+        return self.calc_disc_len() // self.fps
 
     def disc_total_playtime(self):
         return int((self.calc_disc_len() - self.lead_in) // self.fps)
