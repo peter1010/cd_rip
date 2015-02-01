@@ -26,6 +26,7 @@ def call_cd_discid(devname=DEVICE):
         logger.error("No CD found")
         return None, False
     info = info.decode("ascii").split()
+    logger.debug("1> %s", info)
     return info, args[1] == "--musicbrainz"
 
 
@@ -54,8 +55,9 @@ def str2bool(value):
     raise ValueError(value)
 
 
-def read_toc(devname=DEVICE, lead_in=DEF_LEAD_IN, fps=DEF_FPS):
+def read_toc(devname=DEVICE, fps=DEF_FPS):
     """Read and parse the CD TOC"""
+    fudge_factor = DEF_LEAD_IN
     args = ["cdparanoia", "-d", DEVICE, "-Q"]
     logger.debug("Shell -> '%s'", "".join(args))
     try:
@@ -67,6 +69,8 @@ def read_toc(devname=DEVICE, lead_in=DEF_LEAD_IN, fps=DEF_FPS):
         logger.error("No CD found")
         return None, 0
     lines = info.decode("ascii").splitlines()
+    for line in lines:
+        logger.debug("1> %s", line)
     assert lines[0].startswith("cdparanoia")
     lines.pop(0)
     while lines[0] == '':
@@ -91,7 +95,7 @@ def read_toc(devname=DEVICE, lead_in=DEF_LEAD_IN, fps=DEF_FPS):
                     fps = int(0.5 + sectors / time)
                     assert fps == DEF_FPS
                 if hdr == "begin":
-                    sectors += lead_in
+                    sectors += fudge_factor
                 value = sectors
             else:
                 value, values = values[0], values[1:]
@@ -100,7 +104,7 @@ def read_toc(devname=DEVICE, lead_in=DEF_LEAD_IN, fps=DEF_FPS):
                 elif hdr == "track":
                     if value == "TOTAL":
                         data = None
-                        disc_len = lead_in + int(values[0])
+                        disc_len = fudge_factor + int(values[0])
                         break
                     assert value[-1] == '.'
                     value = int(value[:-1])
@@ -243,8 +247,8 @@ class DiscInfo(object):
         return True
 
     def _read_toc(self, devname=DEVICE):
-        self.lead_in = DEF_LEAD_IN
-        info, disc_len = read_toc(devname, self.lead_in)
+#        self.lead_in = DEF_LEAD_IN
+        info, disc_len = read_toc(devname)
         if info is None:
             return False
         self.fps = DEF_FPS
@@ -252,13 +256,22 @@ class DiscInfo(object):
             num = row['track']
             offset = row['begin']
             if num == 1:
-                assert self.lead_in == offset
+                if self.lead_in != offset:
+                    raise RuntimeError("lead_in {} != offset {}".format(
+                        self.lead_in, offset)
+                    )
+                    disc_len += (offset - self.lead_in)
+                    self.lead_in = offset
             track = self.add_track(num, offset)
             track.add_toc_info(
                 row['pre'],
                 row['length']
             )
-        assert disc_len == self.calc_disc_len()
+        if disc_len != self.calc_disc_len():
+            logger.error("disc_len mismatch %i != %i", disc_len,
+                self.calc_disc_len()
+            )
+#            raise RuntimeError
         return True
 
     def read_disk(self, devname=DEVICE):
