@@ -43,9 +43,11 @@ def musicbrainz_disc_id(disc_info):
 def perform_request(url):
     """Perform a read request to server"""
     logging.debug("Getting %s", url)
+    headers = { 'User-Agent' : 'CD-RIP/1.0 (peter1010 at the github)' }
+    req = urllib.request.Request(url, headers=headers)
     for i in range(5):
         try:
-            response = urllib.request.urlopen(url)
+            response = urllib.request.urlopen(req)
         except urllib.error.HTTPError as err:
             print("Sleeping")
             time.sleep(3 + i*0.5)
