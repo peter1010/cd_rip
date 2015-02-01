@@ -3,12 +3,21 @@ cd_rip
 
 A Python scripts for ripping CDs to mp3 / oggs.
 
+Installation
+------------
+For Arch Linux their is PKGBUILD file so:
+  * makepkg
+  * pacman -U cd_rip...
+
+For others use the python setuptools
+  * ./setup.py install
+
 Usage
 -----
 
 Put CD into drive
 
-type './rip.py' at the command line
+type './cd_rip.sh' at the command line
 
 It will:
 
@@ -20,3 +29,7 @@ It will:
   * Ask User what next..
   * Next is convert to mp3 or ogg per track
 
+Problems
+--------
+When the program runs it generates a file 'log.txt' in the current
+working directory. Use that to diagnosis what went wrong or sent to me
