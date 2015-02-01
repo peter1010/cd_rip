@@ -158,7 +158,7 @@ def read_track_metadata(disc_info, server_url=MUSICBRAINZ_SERVER):
         num = int(track["number"])
         title = track["title"]
         artist = _extract_artist(track)
-        logger.info("[%i] %s / %s", num, artist. title)
+        logger.info("[%i] %s / %s", num, artist, title)
         obj = disc_info.get_track(num)
         obj.set_title(title)
         obj.set_artist(artist)
