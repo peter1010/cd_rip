@@ -5,6 +5,7 @@ import pickle
 import logging
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 import rip_lib.disc_info as disc_info
 import rip_lib.freedb as cddb
@@ -131,12 +132,14 @@ def save_pickle(tmp_dir, info):
 def get_wip_dir(working_dir):
     """Get or Make the tmp working directory"""
     if os.path.exists("pickle.info"):
-        return "."
-    tmp_dir = os.path.join(working_dir, "tmp_rip")
-    try:
-        os.mkdir(tmp_dir)
-    except FileExistsError:
-        pass
+        tmp_dir = "."
+    else:
+        tmp_dir = os.path.join(working_dir, "tmp_rip")
+        try:
+            os.mkdir(tmp_dir)
+        except FileExistsError:
+            pass
+    logger.debug("working_dir='%s'", tmp_dir)
     return tmp_dir
 
 
@@ -391,9 +394,10 @@ def main(working_dir):
 
     discInfo = disc_info.DiscInfo()
     if not discInfo.read_disk(DEVICE):
+        logger.info("Reading from pickle file (no disc detected)")
         discInfo = load_pickle(tmp_dir)
-    print(discInfo)
     if not discInfo:
+        logger.error("No disc information available")
         return
     if not musz.get_track_info(discInfo):
         cddb.get_track_info(discInfo)

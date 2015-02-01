@@ -4,6 +4,8 @@ import logging
 
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
 
 DEVICE = "/dev/sr0"
 DEF_FPS = 75
@@ -14,6 +16,7 @@ def call_cd_discid(devname=DEVICE):
     """Perform a cd-discid call"""
     args = ["cd-discid", "--musicbrainz", devname]
 #    args = ["cd-discid", devname]
+    logger.debug("Shell -> %s", "".join(args))
     try:
         info = subprocess.check_output(args)
     except FileNotFoundError:
@@ -54,6 +57,7 @@ def str2bool(value):
 def read_toc(devname=DEVICE, lead_in=DEF_LEAD_IN, fps=DEF_FPS):
     """Read and parse the CD TOC"""
     args = ["cdparanoia", "-d", DEVICE, "-Q"]
+    logger.debug("Shell -> '%s'", "".join(args))
     try:
         info = subprocess.check_output(args, stderr=subprocess.STDOUT)
     except FileNotFoundError:
