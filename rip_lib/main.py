@@ -40,7 +40,7 @@ def extractStr(line):
     return line
 
 
-def replace_chars(line, chars="\\\'\" (){}[]<>"):
+def replace_chars(line, chars="/\\\'\" (){}[]<>"):
     """Replace some characters in string"""
     line = line.strip()
     for char in chars:
