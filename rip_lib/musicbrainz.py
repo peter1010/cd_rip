@@ -35,17 +35,21 @@ def musicbrainz_disc_id(disc_info):
     chksum = hashlib.sha1()
     chksum.update(data)
     data = chksum.digest()
-    return mbase64(data).decode("ascii")
+    magic = mbase64(data).decode("ascii")
+    logger.debug("Musicbrainz DISC ID = %s", magic)
+    return magic
 
 
 def perform_request(url):
     """Perform a read request to server"""
     logging.debug("Getting %s", url)
-    for i in range(4):
+    for i in range(5):
         try:
             response = urllib.request.urlopen(url)
         except urllib.error.HTTPError as err:
-            time.sleep(3)
+            print("Sleeping")
+            time.sleep(3 + i*0.5)
+            print("Awake")
             if err.code == 503:
                 logger.debug("Failed with 503 so will try again")
                 continue
@@ -56,7 +60,7 @@ def perform_request(url):
             return None
         break
     else:
-        logger.error("Failed to connect to '%s' %s", url, err)
+        logger.error("Failed to connect to '%s' after %i attempts", url, i)
         return None
 
     lines = []
@@ -113,6 +117,28 @@ def _extract_artist(json_obj):
     logger.debug("Artist = %s", artist)
     return artist
 
+def _select_media(json_obj, disc_info):
+    choice = []
+    for media in json_obj:
+        num_of_tracks = media["track-count"]
+        if num_of_tracks != len(disc_info.tracks):
+            logger.debug("Reject media Num tracks %i != %i",
+                num_of_tracks, len(disc_info.tracks)
+            )
+            continue
+        for track in media["tracks"]:
+            length = (int(track["length"]) * disc_info.fps)//1000
+            idx = int(track["number"])
+            _track = disc_info.get_track(idx)
+            if _track.length != length:
+                logger.debug("Reject media track length %i != %i",
+                    length, _track.length
+                )
+        choice.append(media)
+    assert len(choice) == 1
+    return choice[0]
+
+
 def read_track_metadata(disc_info, server_url=MUSICBRAINZ_SERVER):
     url = "{0}release/{1}/?inc=artist-credits+recordings&fmt=json".format(
         server_url, disc_info.mbid
@@ -121,19 +147,18 @@ def read_track_metadata(disc_info, server_url=MUSICBRAINZ_SERVER):
     if data is None:
         return False
     obj = json.loads(data)
-    print(json.dumps(obj, sort_keys=True, indent=4))
+    result = json.dumps(obj, sort_keys=True, indent=4)
+    for line in result.splitlines():
+        logger.debug(">> %s", line)
     assert obj["id"] == disc_info.mbid
-    media = obj["media"]
-    assert(len(media) == 1)
-    media = media[0]
+    media = _select_media(obj["media"], disc_info)
     disc_info.set_artist(_extract_artist(obj))
     for track in media["tracks"]:
 #        print(json.dumps(track, sort_keys=True, indent=4))
         num = int(track["number"])
-        length = int(track["length"])
         title = track["title"]
         artist = _extract_artist(track)
-        logger.info("[%i] %s / %s (%i)", num, artist. title, length)
+        logger.info("[%i] %s / %s", num, artist. title)
         obj = disc_info.get_track(num)
         obj.set_title(title)
         obj.set_artist(artist)
@@ -160,10 +185,11 @@ def get_coverart(disc_info, filename="cover.jpg",
         return None
     obj = json.loads(data)
     for image in obj["images"]:
-        if image["front"]:
+        if not image["back"]:
             resource = image["image"]
-    print(resource)
-#    print(json.dumps(obj, sort_keys=True, indent=4))
+    for line in json.dumps(obj, sort_keys=True, indent=4).splitlines():
+        logger.debug(">> %s", line)
+
     try:
         response = urllib.request.urlopen(resource)
     except urllib.error.URLError as err:
