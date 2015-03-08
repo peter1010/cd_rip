@@ -132,11 +132,15 @@ def _select_media(json_obj, disc_info):
             length = (int(track["length"]) * disc_info.fps)//1000
             idx = int(track["number"])
             _track = disc_info.get_track(idx)
-            if _track.length != length:
+            diff = _track.length - length
+            if diff > 1 or diff < -1:
                 logger.debug("Reject media track length %i != %i",
                     length, _track.length
                 )
-        choice.append(media)
+                break
+        else:
+            choice.append(media)
+    print( len(choice))
     assert len(choice) == 1
     return choice[0]
 

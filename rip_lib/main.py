@@ -158,9 +158,10 @@ def execute(args, temp_file, out_file):
         os.rename(temp_file, out_file)
     except FileNotFoundError:
         print("Check %s is installed\n" % args[0])
-        sys.exit(-1)
+        return False
     finally:
         rm_file(temp_file)
+    return True
 
 
 def read_cd(tmp_dir, info):
@@ -175,7 +176,10 @@ def read_cd(tmp_dir, info):
             "\"-{0}\"".format(info.num_tracks),
             temp_file
         ]
-        execute(args, temp_file, wav_file)
+        if not execute(args, temp_file, wav_file):
+            args[3] = "\"-{}\"".format(info.num_tracks-1)
+            if not execute(args, temp_file, wav_file):
+                sys.exit(-1)
     else:
         logger.info("CD already read")
 
@@ -214,7 +218,8 @@ def to_flac(tmp_dir, info):
             "--no-padding",
             "--cuesheet={}".format(cue_file),
             "-o", temp_file, wav_file]
-        execute(args, temp_file, flac_file)
+        if not execute(args, temp_file, flac_file):
+            sys.exit(-1)
     else:
         logger.info("FLAC archive already created")
 
@@ -236,7 +241,8 @@ def flac2wav(tmp_dir, idx, multiple):
         if multiple:
             args.append("--cue={}.1-{}.1".format(idx, idx+1))
         args += ["-o", temp_file]
-        execute(args, temp_file, wav)
+        if not execute(args, temp_file, wav):
+            sys.exit(-1)
     return wav
 
 
@@ -252,7 +258,8 @@ def flac48k2wav(tmp_dir, idx, multiple):
         args = [
             "sox", "-S", "-G", wav, temp_file, "rate", "-v", "48k"
         ]
-        execute(args, temp_file, wav48k)
+        if not execute(args, temp_file, wav48k):
+            sys.exit(-1)
     return wav48k
 
 
@@ -352,7 +359,8 @@ def to_mp3(tmp_dir, info, multiple, do48k):
                     "--tn", str(idx),
                 ]
             args += [wav, temp_file]
-            execute(args, temp_file, mp3)
+            if not execute(args, temp_file, mp3):
+                sys.exit(-1)
 
 
 def fix_mp3_tags(tmp_dir, info, i):
