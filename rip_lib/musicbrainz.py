@@ -124,18 +124,18 @@ def _select_media(json_obj, disc_info):
     for media in json_obj:
         num_of_tracks = media["track-count"]
         if num_of_tracks != len(disc_info.tracks):
-            logger.debug("Reject media Num tracks %i != %i",
+            logger.warn("Reject media Num tracks %i != %i",
                 num_of_tracks, len(disc_info.tracks)
             )
             continue
         for track in media["tracks"]:
-            length = (int(track["length"]) * disc_info.fps)//1000
+            length = (int(track["length"]) + 500)//1000 # In seconds
             idx = int(track["number"])
-            _track = disc_info.get_track(idx)
-            diff = _track.length - length
+            t_length = (disc_info.get_track(idx).length + disc_info.fps/2) // disc_info.fps
+            diff = t_length - length
             if diff > 1 or diff < -1:
-                logger.debug("Reject media track length %i != %i",
-                    length, _track.length
+                logger.warn("Reject media track %i length %i s != %i s",
+                    idx, length, _track.length
                 )
                 break
         else:
