@@ -124,9 +124,8 @@ def perform_request(server_url, query_str, hello_str, proto_str):
             return None
         break
     else:
-        logger.error("Failed to connect to '%s' %s", server_url, err)
+        logger.error("Failed to connect to '%s' timed out", server_url)
         return None
-
 
     lines = []
     for line in response.readlines():
