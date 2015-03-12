@@ -119,24 +119,27 @@ def perform_request(server_url, query_str, hello_str, proto_str):
             time.sleep(3)
             if err.code == 503:
                 continue
+            response = None
         except urllib.error.URLError as err:
             logger.error("Failed to connect to '%s' %s", server_url, err)
-            return None
+            response = None
         break
     else:
         logger.error("Failed to connect to '%s' timed out", server_url)
-        return None
+        response = None
 
-    lines = []
-    for line in response.readlines():
-        try:
-            line = line.decode("utf-8")
-        except UnicodeDecodeError:
-            line = line.decode("iso-8859-1")
-        line = line.strip()
-        lines.append(line)
-    response.close()
-    return lines
+    if response:
+        lines = []
+        for line in response.readlines():
+            try:
+                line = line.decode("utf-8")
+            except UnicodeDecodeError:
+                line = line.decode("iso-8859-1")
+            line = line.strip()
+            lines.append(line)
+        response.close()
+        return lines
+    return None
 
 
 class CddbEntry(object):

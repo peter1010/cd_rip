@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import sys
 import os
 import unittest
@@ -23,12 +25,14 @@ class Disc:
 class Track:
     pass
 
+a_tiddle = b"\xc3".decode("iso-8859-1")
 
 class Response:
     def readlines(self):
+        """Notice the non-utf8 char"""
         return [
             b"",
-            b"# Comment 1",
+            b"# Comment 1 \xc3",
             b"",
             b"# Comment 2",
             b"",
@@ -37,19 +41,36 @@ class Response:
     def close(self):
         pass
 
+class Mock_urlopen:
+    def __init__(self):
+        self.exec_cnt = 0
+        self.exec_code = 503
+        self.exec_url_error = False
 
-def mock_urlopen(url):
-    mock_urlopen.url = url
-    if hasattr(mock_urlopen, "exec_cnt") and \
-            mock_urlopen.exec_cnt > 0:
-        mock_urlopen.exec_cnt -= 1
-        err = urllib.error.HTTPError(url, 503, None, None, None)
-        raise err
-    return Response()
+    def __call__(self, url):
+        if self.exec_cnt > 0:
+            self.exec_cnt -= 1
+            if self.exec_url_error:
+                raise urllib.error.URLError(url,
+                        self.exec_code)
+            else:
+                raise urllib.error.HTTPError(url,
+                        self.exec_code, None, None, None)
+        self.url = url
+        return Response()
 
 
 class TestCddbFunctions(unittest.TestCase):
-    
+   
+    def setUp(self):
+        self.mock_urlopen = Mock_urlopen()
+        self.__saved_urlopen = urllib.request.urlopen = Mock_urlopen
+        urllib.request.urlopen = self.mock_urlopen
+
+    def tearDown(self):
+        urllib.request.urlopen = self.__saved_urlopen
+
+
     def test_split_on_slash(self):
         self.assertEqual(
             freedb.split_on_slash("asasas / fdfdf"),
@@ -124,16 +145,46 @@ class TestCddbFunctions(unittest.TestCase):
         self.assertEqual(freedb.get_read_str(obj, "0xde4"),
                 "cmd=cddb+read+pop+0xde4")
 
-    def test_7(self):
+    def test_perform_request_404(self):
         freedb.get_hello_str.cache_clear()
-        urllib.request.urlopen = mock_urlopen
+        self.mock_urlopen.exec_cnt = 1
+        self.mock_urlopen.exec_code = 404
         lines = freedb.perform_request("http://freedb", "query", "hello", "proto") 
-        self.assertEqual(lines,['', '# Comment 1', '', '# Comment 2', '',
+        self.assertEqual(lines, None)
+
+    def test_perform_request_bad_url(self):
+        freedb.get_hello_str.cache_clear()
+        self.mock_urlopen.exec_cnt = 1
+        self.mock_urlopen.exec_code = 404
+        self.mock_urlopen.exec_url_error = True
+        lines = freedb.perform_request("http://freedb", "query", "hello", "proto") 
+        self.assertEqual(lines, None)
+
+
+    def test_perform_request_503(self):
+        expected_lines = ['', '# Comment 1 ' + a_tiddle, '', '# Comment 2', '',
+            'name=value']
+        freedb.get_hello_str.cache_clear()
+        self.mock_urlopen.exec_cnt = 1
+        lines = freedb.perform_request("http://freedb", "query", "hello", "proto") 
+        self.assertEqual(lines, expected_lines)
+        self.mock_urlopen.exec_cnt = 3
+        lines = freedb.perform_request("http://freedb", "query", "hello", "proto") 
+        self.assertEqual(lines, expected_lines)
+        self.mock_urlopen.exec_cnt = 4
+        lines = freedb.perform_request("http://freedb", "query", "hello", "proto") 
+        self.assertEqual(lines, None)
+
+
+    def test_perform_request_good(self):
+        freedb.get_hello_str.cache_clear()
+        lines = freedb.perform_request("http://freedb", "query", "hello", "proto") 
+        self.assertEqual(lines,['', '# Comment 1 ' + a_tiddle, '', '# Comment 2', '',
             'name=value'])
+
 
     def test_8(self):
         freedb.get_hello_str.cache_clear()
-        urllib.request.urlopen = mock_urlopen
         obj = Dummy()
         obj.disc_id = "id"
         obj.category = "pop"
