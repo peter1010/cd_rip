@@ -3,3 +3,4 @@ pkg
 build
 *.tar.xz
 log.txt
+*,cover

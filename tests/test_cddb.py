@@ -10,9 +10,15 @@ lib_path = os.path.join(os.path.dirname(__file__), "..")
 sys.path.insert(0, lib_path)
 
 from rip_lib import freedb
+from rip_lib import __main__ as rip_lib_main
 
 class Dummy:
     pass
+
+ 
+class Track:
+    pass
+
 
 class Disc: 
     def __init__(self):
@@ -22,22 +28,54 @@ class Disc:
     def calc_disc_len_in_secs(self):
         return 9999
 
-class Track:
-    pass
+    def test_create1(self):
+        self.disc_id = "id"
+        self.disc_len = 9999
+        tracks = [Track() for i in range(5)]
+        for i, tobj in enumerate(tracks):
+            tobj.offset = i*10+6
+        self.num_tracks = len(tracks)
+        self.tracks = tracks
 
 a_tiddle = b"\xc3".decode("iso-8859-1")
 
 class Response:
+    def __init__(self, case):
+        self.case = case
+
     def readlines(self):
         """Notice the non-utf8 char"""
-        return [
-            b"",
-            b"# Comment 1 \xc3",
-            b"",
-            b"# Comment 2",
-            b"",
-            b"name=value"
-        ]
+        if self.case == 1:
+            lines = [
+                b"",
+                b"# Comment 1 \xc3",
+                b"",
+                b"# Comment 2",
+                b"",
+                b"name=value"
+            ]
+        elif self.case == 2:
+            lines =  [
+                b"210",
+                b"category1 disc-id1  artist1 / title1",
+                b"category2 disc-id2  title2",
+                b"category3 disc-id3  title3",
+                b"."
+            ]
+        elif self.case == 3:
+            lines = [
+                b"200 category disc-id artist / title"
+            ]
+        else:
+            lines =  [
+                b"210",
+                b"name1=value1",
+                b"name2=value2",
+                b"."
+            ]
+ 
+        return lines
+
     def close(self):
         pass
 
@@ -46,6 +84,7 @@ class Mock_urlopen:
         self.exec_cnt = 0
         self.exec_code = 503
         self.exec_url_error = False
+        self.case = 1
 
     def __call__(self, url):
         if self.exec_cnt > 0:
@@ -57,7 +96,26 @@ class Mock_urlopen:
                 raise urllib.error.HTTPError(url,
                         self.exec_code, None, None, None)
         self.url = url
-        return Response()
+        return Response(self.case)
+
+
+class PatchInput:
+    def __init__(self, inputs):
+        self.inputs = inputs
+        
+    def mock_input(self, arg):
+        next = self.inputs.pop(0)
+        return next
+
+    def __enter__(self):
+        self.saved = __builtins__.input
+        __builtins__.input = self.mock_input
+        return self
+
+    def __exit__(self, e_type, e_value, e_traceback):
+        __builtins__.input = self.saved
+        assert(len(self.inputs) == 0)
+
 
 
 class TestCddbFunctions(unittest.TestCase):
@@ -127,13 +185,7 @@ class TestCddbFunctions(unittest.TestCase):
     def test_get_query_str(self):
         freedb.get_hello_str.cache_clear()
         obj = Disc()
-        obj.disc_id = "id"
-        obj.disc_len = 9999
-        tracks = [Track() for i in range(5)]
-        for i, tobj in enumerate(tracks):
-            tobj.offset = i*10+6
-        obj.num_tracks = len(tracks)
-        obj.tracks = tracks
+        obj.test_create1()
         self.assertEqual(freedb.get_query_str(obj),
                 "cmd=cddb+query+0003e805+5+6+16+26+36+46+9999")
 
@@ -182,9 +234,35 @@ class TestCddbFunctions(unittest.TestCase):
         self.assertEqual(lines,['', '# Comment 1 ' + a_tiddle, '', '# Comment 2', '',
             'name=value'])
 
-
-    def test_8(self):
+    def test_query_cddb210(self):
         freedb.get_hello_str.cache_clear()
+        self.mock_urlopen.case = 2
+        obj = Disc()
+        obj.test_create1()
+        with PatchInput(["1"]) as p:
+            result = freedb.query_cddb(obj)
+        self.assertEqual(result.category, "category2")
+        self.assertEqual(result.disc_id, "disc-id2")
+        self.assertEqual(result.artist, None)
+        self.assertEqual(result.title, "title2")
+        self.assertEqual(result.name(), "title2")
+
+    def test_query_cddb200(self):
+        freedb.get_hello_str.cache_clear()
+        self.mock_urlopen.case = 3
+        obj = Disc()
+        obj.test_create1()
+        result = freedb.query_cddb(obj)
+        self.assertEqual(result.category, "category")
+        self.assertEqual(result.disc_id, "disc-id")
+        self.assertEqual(result.artist, "artist")
+        self.assertEqual(result.title, "title")
+        self.assertEqual(result.name(), "artist / title")
+
+
+    def test_read_cddb_metadata(self):
+        freedb.get_hello_str.cache_clear()
+        self.mock_urlopen.case = 4
         obj = Dummy()
         obj.disc_id = "id"
         obj.category = "pop"
@@ -192,8 +270,11 @@ class TestCddbFunctions(unittest.TestCase):
                              "freedb.txt"))
         items = freedb.read_cddb_metadata(obj, "file://" + url)
         print(items)
-        self.assertEqual(items['name'], 'value')
+        self.assertEqual(items['name1'], 'value1')
+        self.assertEqual(items['name2'], 'value2')
+
 
 if __name__ == '__main__':
+    rip_lib_main.config_logging()
     unittest.main()
 

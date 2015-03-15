@@ -170,7 +170,9 @@ def query_cddb(disc_info, server_url=DEF_SERVER):
     disc_id = freedb_disc_id(disc_info)
 
     if status_code == 200:		# OK
-        assert header[2] == disc_id
+        if header[2] == disc_id:
+            logger.error("%s != %s", header[2], disc_id)
+            raise RuntimeError
         possible_discs.append(CddbEntry(header[1], header[2], header[3]))
 
     elif status_code == 211 or status_code == 210:  # multiple matches
