@@ -6,6 +6,8 @@ import unittest
 import socket
 import urllib.request
 
+import mocks
+
 lib_path = os.path.join(os.path.dirname(__file__), "..")
 sys.path.insert(0, lib_path)
 
@@ -79,54 +81,14 @@ class Response:
     def close(self):
         pass
 
-class Mock_urlopen:
-    def __init__(self):
-        self.exec_cnt = 0
-        self.exec_code = 503
-        self.exec_url_error = False
-        self.case = 1
-
-    def __call__(self, url):
-        if self.exec_cnt > 0:
-            self.exec_cnt -= 1
-            if self.exec_url_error:
-                raise urllib.error.URLError(url,
-                        self.exec_code)
-            else:
-                raise urllib.error.HTTPError(url,
-                        self.exec_code, None, None, None)
-        self.url = url
-        return Response(self.case)
-
-
-class PatchInput:
-    def __init__(self, inputs):
-        self.inputs = inputs
-        
-    def mock_input(self, arg):
-        next = self.inputs.pop(0)
-        return next
-
-    def __enter__(self):
-        self.saved = __builtins__.input
-        __builtins__.input = self.mock_input
-        return self
-
-    def __exit__(self, e_type, e_value, e_traceback):
-        __builtins__.input = self.saved
-        assert(len(self.inputs) == 0)
-
-
 
 class TestCddbFunctions(unittest.TestCase):
    
     def setUp(self):
-        self.mock_urlopen = Mock_urlopen()
-        self.__saved_urlopen = urllib.request.urlopen = Mock_urlopen
-        urllib.request.urlopen = self.mock_urlopen
+        freedb.get_hello_str.cache_clear()
 
     def tearDown(self):
-        urllib.request.urlopen = self.__saved_urlopen
+        pass
 
 
     def test_split_on_slash(self):
@@ -174,7 +136,6 @@ class TestCddbFunctions(unittest.TestCase):
 
 
     def test_get_hello_str(self):
-        freedb.get_hello_str.cache_clear()
         os.environ["EMAIL"] = "bob@localhost"
         self.assertEqual(freedb.get_hello_str(),
             "hello=bob+localhost+CDDB.py+1.4")
@@ -183,14 +144,12 @@ class TestCddbFunctions(unittest.TestCase):
         self.assertEqual(freedb.get_proto_str(),"proto=5")
 
     def test_get_query_str(self):
-        freedb.get_hello_str.cache_clear()
         obj = Disc()
         obj.test_create1()
         self.assertEqual(freedb.get_query_str(obj),
                 "cmd=cddb+query+0003e805+5+6+16+26+36+46+9999")
 
     def test_get_read_str(self):
-        freedb.get_hello_str.cache_clear()
         obj = Dummy()
         obj.disc_id = "id"
         obj.category = "pop"
@@ -198,49 +157,55 @@ class TestCddbFunctions(unittest.TestCase):
                 "cmd=cddb+read+pop+0xde4")
 
     def test_perform_request_404(self):
-        freedb.get_hello_str.cache_clear()
-        self.mock_urlopen.exec_cnt = 1
-        self.mock_urlopen.exec_code = 404
-        lines = freedb.perform_request("http://freedb", "query", "hello", "proto") 
+        with mocks.PatchUrlOpen(None, 1, 404) as opener:
+            lines = freedb.perform_request(
+                    "http://freedb", "query", "hello", "proto"
+            ) 
         self.assertEqual(lines, None)
 
     def test_perform_request_bad_url(self):
-        freedb.get_hello_str.cache_clear()
-        self.mock_urlopen.exec_cnt = 1
-        self.mock_urlopen.exec_code = 404
-        self.mock_urlopen.exec_url_error = True
-        lines = freedb.perform_request("http://freedb", "query", "hello", "proto") 
+        with mocks.PatchUrlOpen(None, 1, "bad_url") as opener:
+            lines = freedb.perform_request(
+                "http://freedb", "query", "hello", "proto"
+            ) 
         self.assertEqual(lines, None)
 
 
     def test_perform_request_503(self):
         expected_lines = ['', '# Comment 1 ' + a_tiddle, '', '# Comment 2', '',
             'name=value']
-        freedb.get_hello_str.cache_clear()
-        self.mock_urlopen.exec_cnt = 1
-        lines = freedb.perform_request("http://freedb", "query", "hello", "proto") 
+        with mocks.PatchUrlOpen(Response(1), 1, 503) as opener:
+            lines = freedb.perform_request(
+                    "http://freedb", "query", "hello", "proto"
+            ) 
         self.assertEqual(lines, expected_lines)
-        self.mock_urlopen.exec_cnt = 3
-        lines = freedb.perform_request("http://freedb", "query", "hello", "proto") 
+        with mocks.PatchUrlOpen(Response(1), 3, 503) as opener:
+            lines = freedb.perform_request(
+                    "http://freedb", "query", "hello", "proto"
+            ) 
         self.assertEqual(lines, expected_lines)
-        self.mock_urlopen.exec_cnt = 4
-        lines = freedb.perform_request("http://freedb", "query", "hello", "proto") 
+        with mocks.PatchUrlOpen(None, 4, 503) as opener:
+            lines = freedb.perform_request(
+                    "http://freedb", "query", "hello", "proto"
+            ) 
         self.assertEqual(lines, None)
 
 
     def test_perform_request_good(self):
-        freedb.get_hello_str.cache_clear()
-        lines = freedb.perform_request("http://freedb", "query", "hello", "proto") 
-        self.assertEqual(lines,['', '# Comment 1 ' + a_tiddle, '', '# Comment 2', '',
-            'name=value'])
+        with mocks.PatchUrlOpen(Response(1), 0, None) as opener:
+            lines = freedb.perform_request(
+                    "http://freedb", "query", "hello", "proto"
+            ) 
+        self.assertEqual(lines,
+                ['', '# Comment 1 ' + a_tiddle, '',
+                 '# Comment 2', '', 'name=value'])
 
     def test_query_cddb210(self):
-        freedb.get_hello_str.cache_clear()
-        self.mock_urlopen.case = 2
         obj = Disc()
         obj.test_create1()
-        with PatchInput(["1"]) as p:
-            result = freedb.query_cddb(obj)
+        with mocks.PatchUrlOpen(Response(2), 0, None) as opener:
+            with mocks.PatchInput(["1"]) as p:
+                result = freedb.query_cddb(obj)
         self.assertEqual(result.category, "category2")
         self.assertEqual(result.disc_id, "disc-id2")
         self.assertEqual(result.artist, None)
@@ -248,11 +213,10 @@ class TestCddbFunctions(unittest.TestCase):
         self.assertEqual(result.name(), "title2")
 
     def test_query_cddb200(self):
-        freedb.get_hello_str.cache_clear()
-        self.mock_urlopen.case = 3
         obj = Disc()
         obj.test_create1()
-        result = freedb.query_cddb(obj)
+        with mocks.PatchUrlOpen(Response(3), 0, None) as opener:
+            result = freedb.query_cddb(obj)
         self.assertEqual(result.category, "category")
         self.assertEqual(result.disc_id, "disc-id")
         self.assertEqual(result.artist, "artist")
@@ -261,14 +225,13 @@ class TestCddbFunctions(unittest.TestCase):
 
 
     def test_read_cddb_metadata(self):
-        freedb.get_hello_str.cache_clear()
-        self.mock_urlopen.case = 4
         obj = Dummy()
         obj.disc_id = "id"
         obj.category = "pop"
         url = os.path.abspath(os.path.join(os.path.dirname(__file__), 
                              "freedb.txt"))
-        items = freedb.read_cddb_metadata(obj, "file://" + url)
+        with mocks.PatchUrlOpen(Response(4), 0, None) as opener:
+            items = freedb.read_cddb_metadata(obj, "file://" + url)
         print(items)
         self.assertEqual(items['name1'], 'value1')
         self.assertEqual(items['name2'], 'value2')
