@@ -135,7 +135,7 @@ def _select_media(json_obj, disc_info):
             diff = t_length - length
             if diff > 1 or diff < -1:
                 logger.warn("Reject media track %i length %i s != %i s",
-                    idx, length, _track.length
+                    idx, length, t_length
                 )
                 break
         else:
