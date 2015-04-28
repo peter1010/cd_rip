@@ -88,7 +88,11 @@ def query_database(disc_info, server_url=MUSICBRAINZ_SERVER):
         return None
     obj = json.loads(data)
     assert obj["id"] == disc_id
-    releases = obj["releases"]
+    try:
+        releases = obj["releases"]
+    except KeyError:
+        print(json.dumps(obj, sort_keys=True, indent=4))
+        return None
     possible_discs = []
     for rel in releases:
         mbid, title = rel["id"], rel["title"]
