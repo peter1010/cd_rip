@@ -92,15 +92,11 @@ def remove_chars(line, chars="!?;,."):
     return line.strip()
 
 
-def process_tags(info, idx, multiple):
+def process_tags(info, idx):
     """Get the tags from Disc Info, idx is 1 based"""
     album_title = extractStr(info.title)
-    if multiple:
-        performer = info.tracks[idx-1].artist
-        title = info.tracks[idx-1].title
-    else:
-        performer = info.artist
-        title = info.title
+    performer = info.tracks[idx-1].artist
+    title = info.tracks[idx-1].title
     performer = extractStr(performer)
     title = extractStr(title)
 
@@ -224,13 +220,9 @@ def to_flac(tmp_dir, info):
         logger.info("FLAC archive already created")
 
 
-def flac2wav(tmp_dir, idx, multiple):
+def flac2wav(tmp_dir, idx):
     """Return the WAV filename"""
-    if multiple:
-        wav = os.path.join(tmp_dir, "track{:02d}.wav".format(idx))
-    else:
-        wav = os.path.join(tmp_dir, "disc.wav")
-
+    wav = os.path.join(tmp_dir, "track{:02d}.wav".format(idx))
     if not os.path.exists(wav):
         flac_file = os.path.join(tmp_dir, FLACFILE)
         temp_file = "temp.wav"
@@ -238,23 +230,19 @@ def flac2wav(tmp_dir, idx, multiple):
             "flac",
             "-d", flac_file
         ]
-        if multiple:
-            args.append("--cue={}.1-{}.1".format(idx, idx+1))
+        args.append("--cue={}.1-{}.1".format(idx, idx+1))
         args += ["-o", temp_file]
         if not execute(args, temp_file, wav):
             sys.exit(-1)
     return wav
 
 
-def flac48k2wav(tmp_dir, idx, multiple):
+def flac48k2wav(tmp_dir, idx):
     """Return the WAV filename"""
-    if multiple:
-        wav48k = os.path.join(tmp_dir, "track{:02d}.48k.wav".format(idx))
-    else:
-        wav48k = os.path.join(tmp_dir, "disc.48k.wav")
+    wav48k = os.path.join(tmp_dir, "track{:02d}.48k.wav".format(idx))
     if not os.path.exists(wav48k):
         temp_file = "temp.wav"
-        wav = flac2wav(tmp_dir, idx, multiple)
+        wav = flac2wav(tmp_dir, idx)
         args = [
             "sox", "-S", "-G", wav, temp_file, "rate", "-v", "48k"
         ]
@@ -263,31 +251,25 @@ def flac48k2wav(tmp_dir, idx, multiple):
     return wav48k
 
 
-def ogg_filename(tmp_dir, i, multiple):
+def ogg_filename(tmp_dir, i):
     """Return the OGG filename"""
-    if multiple:
-        return os.path.join(tmp_dir, "track{:02d}.ogg".format(i))
-    return os.path.join(tmp_dir, "disc.ogg")
+    return os.path.join(tmp_dir, "track{:02d}.ogg".format(i))
 
 
-def to_ogg(tmp_dir, info, multiple, do48k):
+def to_ogg(tmp_dir, info, do48k):
     """Convert WAV to OGG"""
-    if multiple:
-        start_idx = 1
-        end_idx = info.num_tracks+1
-    else:
-        start_idx = 0
-        end_idx = 1
+    start_idx = 1
+    end_idx = info.num_tracks+1
     for idx in range(start_idx, end_idx):
-        ogg_file = ogg_filename(tmp_dir, idx, multiple)
+        ogg_file = ogg_filename(tmp_dir, idx)
         if not os.path.exists(ogg_file):
             temp_file = "temp.ogg"
             if do48k:
-                wav = flac48k2wav(tmp_dir, idx, multiple)
+                wav = flac48k2wav(tmp_dir, idx)
             else:
-                wav = flac2wav(tmp_dir, idx, multiple)
+                wav = flac2wav(tmp_dir, idx)
             album_title, performer, track_title = process_tags(
-                info, idx, multiple
+                info, idx
             )
             ogg.oggenc(wav, ogg_file, performer, album_title,
                 track_title, idx
@@ -297,22 +279,19 @@ def to_ogg(tmp_dir, info, multiple, do48k):
                 ogg.add_coverart(ogg_file, cover_file)
 
 
-def mp3_filename(tmp_dir, i, multiple):
+def mp3_filename(tmp_dir, i):
     """Return the MP3 filename"""
-    if multiple:
-        return os.path.join(tmp_dir, "track{:02d}.mp3".format(i))
-    return os.path.join(tmp_dir, "disc.mp3")
+    return os.path.join(tmp_dir, "track{:02d}.mp3".format(i))
 
 
 def fix_ogg_tags(tmp_dir, info):
     """Fix the OGG tags"""
     for idx in range(100):
-        multiple = (idx == 0)
-        ogg_file = ogg_filename(tmp_dir, idx, multiple)
+        ogg_file = ogg_filename(tmp_dir, idx)
         if not os.path.exists(ogg_file):
             continue
         try:
-            album_title, performer, track_title = process_tags(info, idx, multiple)
+            album_title, performer, track_title = process_tags(info, idx)
         except IndexError:
             print("%i out of range" % i)
             return False
@@ -322,42 +301,37 @@ def fix_ogg_tags(tmp_dir, info):
             "--set-tag=performer={}".format(performer),
             "--set-tag=trackInfo={}".format(track_title)
         ]
-        if multiple:
-            args += [
+        args += [
                 "--set-tag=trackNo={}".format(idx)
-            ]
+        ]
         args.append(ogg_file)
         print(args)
         subprocess.call(args)
     return True
 
 
-def to_mp3(tmp_dir, info, multiple, do48k):
+def to_mp3(tmp_dir, info, do48k):
     """Convert WAV to MP3"""
-    if multiple:
-        end_idx = info.num_tracks+1
-    else:
-        end_idx = 2
+    end_idx = info.num_tracks+1
     for idx in range(1, end_idx):
-        mp3 = mp3_filename(tmp_dir, idx, multiple)
+        mp3 = mp3_filename(tmp_dir, idx)
         if not os.path.exists(mp3):
             temp_file = "temp.mp3"
             if do48k:
-                wav = flac48k2wav(tmp_dir, idx, multiple)
+                wav = flac48k2wav(tmp_dir, idx)
             else:
-                wav = flac2wav(tmp_dir, idx, multiple)
+                wav = flac2wav(tmp_dir, idx)
             album_title, performer, track_title = process_tags(
-                info, idx, multiple
+                info, idx
             )
             args = ["lame", "-V", "5",
                 "--ta", performer,
                 "--tl", album_title,
                 "--tt", track_title,
             ]
-            if multiple:
-                args += [
+            args += [
                     "--tn", str(idx),
-                ]
+            ]
             args += [wav, temp_file]
             if not execute(args, temp_file, mp3):
                 sys.exit(-1)
@@ -366,11 +340,10 @@ def to_mp3(tmp_dir, info, multiple, do48k):
 def fix_mp3_tags(tmp_dir, info, i):
     """Fix the MP3 tags"""
     for idx in range(100):
-        multiple = (idx == 0)
-        mp3 = mp3_filename(tmp_dir, idx, multiple)
+        mp3 = mp3_filename(tmp_dir, idx)
 
         try:
-            album_title, performer, track_title = process_tags(info, idx, multiple)
+            album_title, performer, track_title = process_tags(info, idx)
         except IndexError:
             print("%i out of range" % i)
             return False
@@ -380,10 +353,9 @@ def fix_mp3_tags(tmp_dir, info, i):
             "-A", album_title,
             "-s", track_title
         ]
-        if multiple:
-            args += [
+        args += [
                 "-t", str(i),
-            ]
+        ]
         args.append(mp3)
         print(args)
         subprocess.call(args)
@@ -397,11 +369,11 @@ def rename_tmp_dir(tmp_dir, info):
         os.rename(tmp_dir, dir_name)
 
 
-def main(working_dir):
+def main(args, working_dir):
     tmp_dir = get_wip_dir(working_dir)
 
     discInfo = disc_info.DiscInfo()
-    if not discInfo.read_disk(DEVICE):
+    if args.only_convert or not discInfo.read_disk(DEVICE):
         logger.info("Reading from pickle file (no disc detected)")
         discInfo = load_pickle(tmp_dir)
     if not discInfo:
@@ -411,21 +383,21 @@ def main(working_dir):
         cddb.get_track_info(discInfo)
     save_pickle(tmp_dir, discInfo)
 
-    read_cd(tmp_dir, discInfo)
-    write_cue_file(tmp_dir, discInfo)
-    get_coverart(tmp_dir, discInfo)
-    to_flac(tmp_dir, discInfo)
+    if not args.only_convert:
+        read_cd(tmp_dir, discInfo)
+        write_cue_file(tmp_dir, discInfo)
+        get_coverart(tmp_dir, discInfo)
+        to_flac(tmp_dir, discInfo)
 
-    multiple = yes_or_no("Split into multiple tracks?")
     do48k = yes_or_no("Use 48K sample rate?")
 
     do_ogg = yes_or_no("Convert to OGG?")
     if do_ogg:
-        to_ogg(tmp_dir, discInfo, multiple, do48k)
+        to_ogg(tmp_dir, discInfo, do48k)
 
     do_mp3 = yes_or_no("Convert to MP3?")
     if do_mp3:
-        to_mp3(tmp_dir, discInfo, multiple, do48k)
+        to_mp3(tmp_dir, discInfo, do48k)
 
     if not do_ogg or not do_mp3:
         do_tags = yes_or_no("Update tags?")

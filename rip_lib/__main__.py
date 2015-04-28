@@ -2,8 +2,10 @@
 
 import os
 import logging
+import argparse
 
 import rip_lib.main as rip
+import rip_lib.discover as discover
 
 def config_logging(logfile="log.txt"):
     if os.path.exists(logfile):
@@ -27,4 +29,34 @@ def config_logging(logfile="log.txt"):
 
 if __name__ == "__main__":
     config_logging()
-    rip.main(os.getcwd())
+    parser = argparse.ArgumentParser(description='Rip Cd contents to files')
+    parser.add_argument('--only-rip', action='store_const', const=True,
+            default=False, help='Only RIP to FLAC')
+    parser.add_argument('--only-convert', action='store_const', const=True,
+            default=False, help='Only convert flac to OGGs and MP3')
+    parser.add_argument('--discover-flacs', action='store_const', const=True,
+            default=False, help='Look for flacs to convert')
+    parser.add_argument('--track-tree', action='store',
+            help='Root of separate tree to put the converted tracks')
+    parser.add_argument('wdir', nargs='?',
+            help='Working directory', default=os.getcwd())
+    args = parser.parse_args()
+    dont = False
+    directories = [args.wdir]
+    if args.only_rip:
+        if args.only_convert:
+            print("Cannot both only-rip and only-convert")
+            dont = True
+        if args.discover_flacs:
+            print("Cannot both only-rip and discover-flacs")
+            dont = True
+    elif args.discover_flacs:
+        if not args.only_convert:
+            print("Cannot both discover FLACs and RIP")
+            dont = True
+        directories = discover.find_directories(args.wdir)
+
+    if not dont:
+        for src_dir in directories:
+            print(src_dir)
+#            rip.main(args, src_dir)
