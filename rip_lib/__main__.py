@@ -36,8 +36,6 @@ if __name__ == "__main__":
             default=False, help='Only convert flac to OGGs and MP3')
     parser.add_argument('--discover-flacs', action='store_const', const=True,
             default=False, help='Look for flacs to convert')
-    parser.add_argument('--track-tree', action='store',
-            help='Root of separate tree to put the converted tracks')
     parser.add_argument('wdir', nargs='?',
             help='Working directory', default=os.getcwd())
     args = parser.parse_args()
@@ -58,5 +56,4 @@ if __name__ == "__main__":
 
     if not dont:
         for src_dir in directories:
-            print(src_dir)
-#            rip.main(args, src_dir)
+            rip.main(args, src_dir)
