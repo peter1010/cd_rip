@@ -243,6 +243,7 @@ class DiscInfo(object):
         for i, offset in enumerate(offsets):
             track = self.add_track(i+1, offset)
             track.length = lengths[i]
+            logger.debug("Length=%i", lengths[i])
         assert disc_len == self.calc_disc_len()
         return True
 
@@ -267,20 +268,18 @@ class DiscInfo(object):
                 row['pre'],
                 row['length']
             )
-        if disc_len != self.calc_disc_len():
+        while disc_len != self.calc_disc_len():
             if len(info) == len(self.tracks) - 1:
                 logger.warn("Possible extra hidden track, removing it...")
                 del self.tracks[-1]
-                if disc_len != self.calc_disc_len():
-                    logger.error("disc_len mismatch %i != %i", disc_len,
-                        self.calc_disc_len()
-                    )
-                    raise RuntimeError
-            else:
-                logger.error("disc_len mismatch %i != %i", disc_len,
-                    self.calc_disc_len()
-                )
-                raise RuntimeError
+                continue
+
+            logger.error("disc_len mismatch %i != %i", disc_len,
+                self.calc_disc_len()
+            )
+#            print(self.lead_in)
+#            raise RuntimeError
+            break
         return True
 
     def read_disk(self, devname=DEVICE):
