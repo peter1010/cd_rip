@@ -268,10 +268,19 @@ class DiscInfo(object):
                 row['length']
             )
         if disc_len != self.calc_disc_len():
-            logger.error("disc_len mismatch %i != %i", disc_len,
-                self.calc_disc_len()
-            )
-#            raise RuntimeError
+            if len(info) == len(self.tracks) - 1:
+                logger.warn("Possible extra hidden track, removing it...")
+                del self.tracks[-1]
+                if disc_len != self.calc_disc_len():
+                    logger.error("disc_len mismatch %i != %i", disc_len,
+                        self.calc_disc_len()
+                    )
+                    raise RuntimeError
+            else:
+                logger.error("disc_len mismatch %i != %i", disc_len,
+                    self.calc_disc_len()
+                )
+                raise RuntimeError
         return True
 
     def read_disk(self, devname=DEVICE):
