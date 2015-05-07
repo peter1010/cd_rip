@@ -1,7 +1,7 @@
 pkgbase=cd_rip
 pkgname=('cd_rip')
 pkgver=1.0
-pkgrel=4
+pkgrel=5
 pkgdesc="CD Ripper"
 arch=('any')
 url="http:"
