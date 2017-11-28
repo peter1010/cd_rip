@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 
+##
+# Copyright (c) 2014 Peter Leese
+#
+# Licensed under the GPL License. See LICENSE file in the project root for full license information.  
+##
+
 from distutils.core import setup
 
 setup(
