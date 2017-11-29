@@ -1,5 +1,11 @@
 #!/usr/bin/env python
 
+##
+# Copyright (c) 2013 Peter Leese
+#
+# Licensed under the GPL License. See LICENSE file in the project root for full license information.  
+##
+
 import sys
 import os
 import unittest

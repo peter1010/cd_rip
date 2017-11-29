@@ -1,3 +1,10 @@
+
+##
+# Copyright (c) 2013 Peter Leese
+#
+# Licensed under the GPL License. See LICENSE file in the project root for full license information.  
+##
+
 import urllib.request
 import urllib.parse
 import hashlib
@@ -137,7 +144,7 @@ def _select_media(json_obj, disc_info):
             idx = int(track["number"])
             t_length = (disc_info.get_track(idx).length + disc_info.fps/2) // disc_info.fps
             diff = t_length - length
-            if diff > 1 or diff < -1:
+            if diff > 2 or diff < -2:
                 logger.warn("Reject media track %i length %i s != %i s",
                     idx, length, t_length
                 )

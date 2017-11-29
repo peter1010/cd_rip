@@ -1,5 +1,12 @@
 """Collection of mock objects to help with testing"""
 
+##
+# Copyright (c) 2013 Peter Leese
+#
+# Licensed under the GPL License. See LICENSE file in the project root for full license information.  
+##
+
+
 import builtins
 import urllib.request
 

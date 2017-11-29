@@ -1,3 +1,9 @@
+##
+# Copyright (c) 2013 Peter Leese
+#
+# Licensed under the GPL License. See LICENSE file in the project root for full license information.  
+##
+
 import subprocess
 import base64
 import struct
