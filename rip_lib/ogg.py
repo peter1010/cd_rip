@@ -8,6 +8,7 @@ import subprocess
 import base64
 import struct
 import os
+import sys
 
 
 VORBIS_COMMENT_EXE = "vorbiscomment"
