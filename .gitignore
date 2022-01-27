@@ -1,6 +1,8 @@
 tmp_rip
 pkg
 build
+dist
 *.tar.xz
+*.egg-info
 log.txt
 *,cover
