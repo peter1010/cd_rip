@@ -5,12 +5,7 @@ A Python scripts for ripping CDs to mp3 / oggs.
 
 Installation
 ------------
-For Arch Linux their is PKGBUILD file so:
-  * makepkg
-  * pacman -U cd_rip...
-
-For others use the python setuptools
-  * ./setup.py install
+  * pip install .
 
 Usage
 -----
